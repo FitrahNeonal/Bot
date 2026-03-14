@@ -200,10 +200,41 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=
+        "<b>📖 Cara Menggunakan Anonymous Chat Bot</b>\n\n"
+        
+        "<b>1️⃣ Cari partner</b>\n"
+        "Gunakan <code>/find</code> atau tombol <b>Find a partner</b>.\n\n"
+        
+        "<b>2️⃣ Mulai chat</b>\n"
+        "Setelah partner ditemukan, kirim pesan seperti biasa.\n"
+        "Semua pesan akan diteruskan secara anonim.\n\n"
+        
+        "<b>3️⃣ Ganti partner</b>\n"
+        "Gunakan <code>/skip</code> untuk mencari partner baru.\n\n"
+        
+        "<b>4️⃣ Berhenti chat</b>\n"
+        "Gunakan <code>/stop</code> untuk menghentikan chat.\n\n"
+        
+        "⚠️ <b>Rules</b>\n"
+        "Jangan spam, kirim konten vulgar, atau mengganggu pengguna lain.\n\n"
+        
+        "Jika Anda memiliki saran atau menemukan masalah,\n"
+        "kami sangat menghargai feedback Anda.",
+        
+        parse_mode="HTML",
+        reply_markup=FEEDBACK_BUTTON
+    )
+
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("find", find))
     app.add_handler(CommandHandler("skip", skip))
     app.add_handler(CommandHandler("stop", stop))
