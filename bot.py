@@ -15,7 +15,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/find — cari partner\n"
         "/skip — ganti partner\n"
         "/stop — berhenti chat\n\n"
-        "<i>Semua chat bersifat anonim, jadi aman.</i>",
+        "<i>Semua chat bersifat anonim, jadi aman.</i>\n\n"
+        "https://feedbackneo.vercel.app/",
         parse_mode="HTML"
     )
 
@@ -87,7 +88,7 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id not in active_chats:
         await context.bot.send_message(
             chat_id=user_id,
-            text="Kamu gapunya parter lol 😭\n\nGunakan /find untuk mencari partner."
+            text="Kamu gapunya parter lol 😭\n\nGunakan /find untuk mencari partner.\n\nhttps://feedbackneo.vercel.app"
         )
         return
 
@@ -114,7 +115,7 @@ async def skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id not in active_chats:
         await context.bot.send_message(
             chat_id=user_id,
-            text="❔ <i>Kamu tidak sedang chat.</i>",
+            text="❔ <i>Kamu ga lagi chattan.\n</i>",
             parse_mode="HTML"
         )
         return
@@ -167,7 +168,7 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(
         chat_id=user_id,
-        text="❌ Chat dihentikan."
+        text="<i>😞 Chat dihentikan./n/nTolong feedbacknya dongg..\nkalau mau kasih saran/apapun boleh\nhttps://feedbackneo.vercel.app</i>"
     )
 
     if partner:
