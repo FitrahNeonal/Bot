@@ -10,12 +10,10 @@ waiting_users = set()
 active_chats = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        ["🚀 Cari partner"]
-    ]
 
     CARI_PARTNER = ReplyKeyboardMarkup(
-        keyboard,
+        keyboard = "/find",
+        input_field_placeholder="🚀 Cari partner",
         resize_keyboard=True
     )
 
