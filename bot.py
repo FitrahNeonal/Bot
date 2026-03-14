@@ -9,7 +9,7 @@ FEEDBACK_BUTTON = InlineKeyboardMarkup([
 CARI_PARTNER = ReplyKeyboardMarkup(
     [["🚀 Cari partner"]],
     resize_keyboard=True,
-    input_field_placeholder="/find"
+    input_field_placeholder="🚀 Cari partner"
 )
 
 waiting_users = set()
@@ -91,6 +91,13 @@ async def find(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not update.message:
+        return
+
+    text = update.message.text
+
+    # tombol cari partner
+    if text == "🚀 Cari partner":
+        await find(update, context)
         return
 
     user_id = update.effective_user.id
