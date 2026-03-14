@@ -168,7 +168,7 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(
         chat_id=user_id,
-        text="<i>😞 Chat dihentikan./n/nTolong feedbacknya dongg..\nkalau mau kasih saran/apapun boleh\nhttps://feedbackneo.vercel.app</i>",
+        text="😞 <i>Chat dihentikan.\n\nTolong feedbacknya dongg..\nkalau mau kasih saran/apapun boleh</i>\nhttps://feedbackneo.vercel.app",
         parse_mode="HTML"
     )
 
