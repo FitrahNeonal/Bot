@@ -128,11 +128,7 @@ async def skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     waiting_users.discard(user_id)
 
     if user_id not in active_chats:
-        await context.bot.send_message(
-            chat_id=user_id,
-            text="❔ <i>Kamu ga lagi chattan.\n</i>",
-            parse_mode="HTML"
-        )
+        await find(update, context)
         return
 
     partner = active_chats.get(user_id)
