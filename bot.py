@@ -14,7 +14,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ["🚀 Cari partner"]
     ]
 
-    reply_markup = ReplyKeyboardMarkup(
+    CARI_PARTNER = ReplyKeyboardMarkup(
         keyboard,
         resize_keyboard=True
     )
@@ -27,7 +27,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🚀 Tekan tombol di bawah untuk mulai.\n\n"
         "💬 Punya saran?\n"
         "https://feedbackneo.vercel.app",
-        parse_mode="HTML"
+        parse_mode="HTML",
+        reply_markup=CARI_PARTNER
     )
 
 
