@@ -12,9 +12,9 @@ active_chats = {}
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     CARI_PARTNER = ReplyKeyboardMarkup(
-        keyboard = "/find",
-        input_field_placeholder="🚀 Cari partner",
-        resize_keyboard=True
+        [["🚀 /find"]],
+        resize_keyboard=True,
+        input_field_placeholder="🚀 Cari partner"
     )
 
     await context.bot.send_message(
@@ -91,17 +91,13 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not update.message:
         return
-    
-    if update.message.text == "🚀 Find a partner":
-        await find(update, context)
-        return
 
     user_id = update.effective_user.id
 
     if user_id not in active_chats:
         await context.bot.send_message(
             chat_id=user_id,
-            text="<i>Kamu gapunya parter lol 😭\n\nGunakan /find untuk mencari partner.</i>\n\nhttps://feedbackneo.vercel.app",
+            text="<i>Kamu gapunya partner lol 😭\n\nGunakan /find untuk mencari partner.</i>\n\nhttps://feedbackneo.vercel.app",
             parse_mode="HTML"
         )
         return
@@ -193,7 +189,7 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await context.bot.send_message(
             chat_id=partner,
-            text="😞 <>Tolong feedbacknya dongg.. kalau mau kasih saran/apapun boleh, asbun jg oke",
+            text="😞 <i>Tolong feedbacknya dongg.. kalau mau kasih saran apa pun boleh, asbun jg oke.</i>",
             parse_mode="HTML",
             reply_markup=FEEDBACK_BUTTON
         )
