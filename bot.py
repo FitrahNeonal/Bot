@@ -1,22 +1,32 @@
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from config import TOKEN
+
+FEEDBACK_BUTTON = InlineKeyboardMarkup([
+    [InlineKeyboardButton("📝 Beri Feedback", url="https://domainkamu.com/feedback")]
+])
 
 waiting_users = set()
 active_chats = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        ["🚀 Cari partner"]
+    ]
+
+    reply_markup = ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True
+    )
+
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=
-        "<b>🤖 Anonymous Chat Bot</b>\n"
-        "<i>Temukan orang random dan chat secara anonim.</i>\n\n"
-        "Perintah yang tersedia:\n"
-        "/find — cari partner\n"
-        "/skip — ganti partner\n"
-        "/stop — berhenti chat\n\n"
-        "<i>Semua chat bersifat anonim, jadi aman.</i>\n\n"
-        "https://feedbackneo.vercel.app/",
+        "🤖 <b>Anonymous Chat Bot</b>\n"
+        "Temukan orang random dan chat secara anonim.\n"
+        "🚀 Tekan tombol di bawah untuk mulai.\n\n"
+        "💬 Punya saran?\n"
+        "https://feedbackneo.vercel.app",
         parse_mode="HTML"
     )
 
@@ -55,13 +65,13 @@ async def find(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await context.bot.send_message(
             chat_id=user_id,
-            text="💬 <b>Partner ditemukan!</b>\n\n/skip — cari partner baru\n/stop — berhenti chat\n\n<code>https://t.me/anonyneo_bot</code>",
+            text="💬 <b>Partner ditemukan!</b>\n\n/skip — <i>cari partner baru</i>\n/stop — <i>berhenti chat</i>\n\n<code>https://t.me/anonyneo_bot</code>",
             parse_mode="HTML"
         )
 
         await context.bot.send_message(
             chat_id=partner,
-            text="💬 <b>Partner ditemukan!</b>\n\n/skip — cari partner baru\n/stop — berhenti chat\n\n<code>https://t.me/anonyneo_bot</code>",
+            text="💬 <b>Partner ditemukan!</b>\n\n/skip — <i>cari partner baru</i>\n/stop — <i>berhenti chat</i>\n\n<code>https://t.me/anonyneo_bot</code>",
             parse_mode="HTML"
         )
 
@@ -82,13 +92,18 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not update.message:
         return
+    
+    if update.message.text == "🚀 Find a partner":
+        await find(update, context)
+        return
 
     user_id = update.effective_user.id
 
     if user_id not in active_chats:
         await context.bot.send_message(
             chat_id=user_id,
-            text="Kamu gapunya parter lol 😭\n\nGunakan /find untuk mencari partner.\n\nhttps://feedbackneo.vercel.app"
+            text="<i>Kamu gapunya parter lol 😭\n\nGunakan /find untuk mencari partner.</i>\n\nhttps://feedbackneo.vercel.app",
+            parse_mode="HTML"
         )
         return
 
@@ -134,8 +149,9 @@ async def skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if partner:
         await context.bot.send_message(
             chat_id=partner,
-            text="😞 <i>Partner kamu meninggalkan chat.</i>\n\n/find — cari partner baru",
-            parse_mode="HTML"
+            text="😞 <i>Partner kamu meninggalkan chat.</i>\n\n/find — <i>cari partner baru</i>",
+            parse_mode="HTML",
+            reply_markup=FEEDBACK_BUTTON
         )
 
     # langsung cari partner baru
@@ -150,7 +166,8 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await context.bot.send_message(
             chat_id=user_id,
-            text="😡 Kamu menghentikan pencarian partner."
+            text="😡 <i>Kamu menghentikan pencarian partner.</i>",
+            parse_mode="HTML"
         )
         return
 
@@ -167,15 +184,23 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     active_chats.pop(partner, None)
 
     await context.bot.send_message(
-        chat_id=user_id,
-        text="😞 <i>Chat dihentikan.\n\nTolong feedbacknya dongg..\nkalau mau kasih saran/apapun boleh</i>\nhttps://feedbackneo.vercel.app",
-        parse_mode="HTML"
-    )
+    chat_id=user_id,
+    text="💬 <i>Chat telah berakhir.\n\nTerima kasih sudah menggunakan bot ini.</i>",
+    parse_mode="HTML",
+    reply_markup=FEEDBACK_BUTTON
+)
 
     if partner:
         await context.bot.send_message(
             chat_id=partner,
-            text="😞 Partner kamu meninggalkan chat.\n\n/find untuk mencari partner baru."
+            text="😞 <i>Partner kamu meninggalkan chat.\n\n/find untuk mencari partner baru.</i>\n\n",
+            parse_mode="HTML"
+        )
+        await context.bot.send_message(
+            chat_id=partner,
+            text="😞 <>Tolong feedbacknya dongg.. kalau mau kasih saran/apapun boleh, asbun jg oke",
+            parse_mode="HTML",
+            reply_markup=FEEDBACK_BUTTON
         )
 
 
