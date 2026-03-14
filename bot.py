@@ -3,7 +3,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from config import TOKEN
 
 FEEDBACK_BUTTON = InlineKeyboardMarkup([
-    [InlineKeyboardButton("📝 Beri Feedback", url="https://domainkamu.com/feedback")]
+    [InlineKeyboardButton("📝 Beri Feedback", url="https://feedbackneo.vercel.app")]
 ])
 
 waiting_users = set()
