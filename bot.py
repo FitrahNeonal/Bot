@@ -6,16 +6,16 @@ FEEDBACK_BUTTON = InlineKeyboardMarkup([
     [InlineKeyboardButton("📝 Beri Feedback", url="https://feedbackneo.vercel.app")]
 ])
 
+CARI_PARTNER = ReplyKeyboardMarkup(
+    [["🚀 Cari partner"]],
+    resize_keyboard=True,
+    input_field_placeholder="/find"
+)
+
 waiting_users = set()
 active_chats = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    CARI_PARTNER = ReplyKeyboardMarkup(
-        [["🚀 /find"]],
-        resize_keyboard=True,
-        input_field_placeholder="🚀 Cari partner"
-    )
 
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -23,6 +23,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🤖 <b>Anonymous Chat Bot</b>\n"
         "Temukan orang random dan chat secara anonim.\n"
         "🚀 Tekan tombol di bawah untuk mulai.\n\n"
+        "Gunakan /help jika butuh batuan\n"
         "💬 Punya saran?\n"
         "https://feedbackneo.vercel.app",
         parse_mode="HTML",
