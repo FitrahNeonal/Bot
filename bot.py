@@ -46,8 +46,17 @@ def init_db():
     """)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            user_id    INTEGER PRIMARY KEY,
-            first_seen REAL NOT NULL
+            user_id     INTEGER PRIMARY KEY,
+            first_seen  REAL NOT NULL,
+            referred_by INTEGER DEFAULT NULL
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS referrals (
+            referrer_id  INTEGER NOT NULL,
+            referred_id  INTEGER NOT NULL,
+            referred_at  REAL NOT NULL,
+            PRIMARY KEY (referrer_id, referred_id)
         )
     """)
     con.commit()
@@ -109,6 +118,30 @@ def db_get_stats() -> dict:
     con.close()
     return {"waiting": waiting, "chatting": chatting, "total": total}
 
+def db_register_user(user_id: int, referred_by: int | None = None):
+    con = sqlite3.connect("bot_state.db")
+    is_new = con.execute("SELECT 1 FROM users WHERE user_id = ?", (user_id,)).fetchone() is None
+    if is_new:
+        con.execute(
+            "INSERT INTO users VALUES (?, ?, ?)",
+            (user_id, time.time(), referred_by)
+        )
+        if referred_by:
+            con.execute(
+                "INSERT OR IGNORE INTO referrals VALUES (?, ?, ?)",
+                (referred_by, user_id, time.time())
+            )
+    con.commit(); con.close()
+    return is_new
+
+def db_get_referral_count(user_id: int) -> int:
+    con = sqlite3.connect("bot_state.db")
+    count = con.execute(
+        "SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", (user_id,)
+    ).fetchone()[0]
+    con.close()
+    return count
+
 # ─── FIX 2: asyncio.Lock – cegah race condition saat matchmaking ─────────────
 match_lock = asyncio.Lock()
 
@@ -129,9 +162,36 @@ async def _force_disconnect(user_id: int, partner_id: int, context: ContextTypes
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    con = sqlite3.connect("bot_state.db")
-    con.execute("INSERT OR IGNORE INTO users VALUES (?, ?)", (user_id, time.time()))
-    con.commit(); con.close()
+
+    # Cek apakah ada referral parameter (?start=ref_USERID)
+    referred_by = None
+    if context.args:
+        arg = context.args[0]
+        if arg.startswith("ref_"):
+            try:
+                referrer_id = int(arg[4:])
+                if referrer_id != user_id:  # gak bisa refer diri sendiri
+                    referred_by = referrer_id
+            except ValueError:
+                pass
+
+    is_new = db_register_user(user_id, referred_by)
+
+    # Kalau user baru dan ada referrer, kasih notif ke si pengundang
+    if is_new and referred_by:
+        ref_count = db_get_referral_count(referred_by)
+        try:
+            await context.bot.send_message(
+                chat_id=referred_by,
+                text=(
+                    f"🎉 <b>Seseorang join lewat link kamu!</b>\n\n"
+                    f"Total yang kamu ajak: <b>{ref_count}</b> orang. Mantap!"
+                ),
+                parse_mode="HTML"
+            )
+        except TelegramError:
+            pass
+
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
@@ -324,6 +384,23 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    ref_count = db_get_referral_count(user_id)
+    link = f"https://t.me/anonyneo_bot?start=ref_{user_id}"
+
+    await context.bot.send_message(
+        chat_id=user_id,
+        text=(
+            "🔗 <b>Ajak temenmu!</b>\n\n"
+            f"Link invite kamu:\n<code>{link}</code>\n\n"
+            f"👥 Udah <b>{ref_count}</b> orang yang join lewat kamu.\n\n"
+            "<i>Makin banyak yang join, makin cepet dapet partner!</i>"
+        ),
+        parse_mode="HTML"
+    )
+
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -338,7 +415,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "/skip — disconnect dan langsung nyari yang baru.\n\n"
             "<b>4. Keluar</b>\n"
             "/stop — akhiri chat.\n\n"
-            "<b>5. Statistik</b>\n"
+            "<b>5. Ajak teman</b>\n"
+            "/invite — dapat link untuk ajak temenmu.\n\n"
+            "<b>6. Statistik</b>\n"
             "/stats — lihat berapa orang yang lagi online.\n\n"
             "⚠️ <b>Jangan</b> spam, NSFW, atau nyebarin info pribadi orang.\n\n"
             "Ada masukan? Feedback kamu sangat berarti."
@@ -356,6 +435,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("invite", invite))
     app.add_handler(CommandHandler("find", find))
     app.add_handler(CommandHandler("skip", skip))
     app.add_handler(CommandHandler("stop", stop))
