@@ -44,6 +44,12 @@ def init_db():
             joined_at REAL NOT NULL
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id    INTEGER PRIMARY KEY,
+            first_seen REAL NOT NULL
+        )
+    """)
     con.commit()
     con.close()
 
@@ -95,6 +101,14 @@ def db_remove_chat(user_id: int, partner_id: int | None = None):
         con.execute("DELETE FROM active_chats WHERE user_id = ?", (partner_id,))
     con.commit(); con.close()
 
+def db_get_stats() -> dict:
+    con = sqlite3.connect("bot_state.db")
+    waiting  = con.execute("SELECT COUNT(*) FROM waiting_users").fetchone()[0]
+    chatting = con.execute("SELECT COUNT(*) FROM active_chats").fetchone()[0] // 2
+    total    = con.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    con.close()
+    return {"waiting": waiting, "chatting": chatting, "total": total}
+
 # ─── FIX 2: asyncio.Lock – cegah race condition saat matchmaking ─────────────
 match_lock = asyncio.Lock()
 
@@ -114,6 +128,10 @@ async def _force_disconnect(user_id: int, partner_id: int, context: ContextTypes
 # ─── Handlers ────────────────────────────────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    con = sqlite3.connect("bot_state.db")
+    con.execute("INSERT OR IGNORE INTO users VALUES (?, ?)", (user_id, time.time()))
+    con.commit(); con.close()
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
@@ -121,6 +139,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Chat sama orang random, tanpa ketahuan siapa kamu.\n\n"
             "Tekan tombol di bawah buat mulai.\n"
             "/help kalau butuh panduan.\n\n"
+            f"👥 Udah <b>{db_get_stats()['total']}</b> orang yang pernah mampir.\n\n"
             "💬 Ada saran? → https://feedbackneo.vercel.app"
         ),
         parse_mode="HTML",
@@ -166,9 +185,15 @@ async def find(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info("Matched: %s <-> %s", user_id, partner)
     else:
         db_add_waiting(user_id)
+        s = db_get_stats()
+        online = s["chatting"] * 2 + s["waiting"]
         await context.bot.send_message(
             chat_id=user_id,
-            text="🔎 <i>Lagi nyariin partner buat kamu...</i>\nPakai /stop kalau mau batal.",
+            text=(
+                f"🔎 <i>Lagi nyariin partner buat kamu...</i>\n"
+                f"Ada <b>{online}</b> orang online sekarang.\n\n"
+                "Pakai /stop kalau mau batal."
+            ),
             parse_mode="HTML"
         )
 
@@ -284,7 +309,22 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    s = db_get_stats()
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=(
+            "📊 <b>Status Bot</b>\n\n"
+            f"💬 Lagi chat: <b>{s['chatting']}</b> pasang\n"
+            f"🔎 Lagi nyari: <b>{s['waiting']}</b> orang\n"
+            f"👥 Total pengguna: <b>{s['total']}</b> orang\n\n"
+            "<i>Makin rame makin seru — ajak temenmu!</i>"
+        ),
+        parse_mode="HTML"
+    )
+
+
+(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
@@ -298,6 +338,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "/skip — disconnect dan langsung nyari yang baru.\n\n"
             "<b>4. Keluar</b>\n"
             "/stop — akhiri chat.\n\n"
+            "<b>5. Statistik</b>\n"
+            "/stats — lihat berapa orang yang lagi online.\n\n"
             "⚠️ <b>Jangan</b> spam, NSFW, atau nyebarin info pribadi orang.\n\n"
             "Ada masukan? Feedback kamu sangat berarti."
         ),
@@ -313,6 +355,7 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("find", find))
     app.add_handler(CommandHandler("skip", skip))
     app.add_handler(CommandHandler("stop", stop))
