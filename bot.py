@@ -1,7 +1,9 @@
 import asyncio
 import logging
-import sqlite3
+import os
 import time
+
+import libsql_experimental as libsql
 
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import Forbidden, BadRequest, TelegramError
@@ -15,6 +17,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ─── Turso config ────────────────────────────────────────────────────────────
+TURSO_URL   = os.environ["TURSO_URL"]
+TURSO_TOKEN = os.environ["TURSO_TOKEN"]
+
+def get_con():
+    return libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
+
 # ─── UI ─────────────────────────────────────────────────────────────────────
 FEEDBACK_BUTTON = InlineKeyboardMarkup([
     [InlineKeyboardButton("📝 Beri Feedback", url="https://feedbackneo.vercel.app")]
@@ -26,11 +35,10 @@ CARI_PARTNER = ReplyKeyboardMarkup(
     input_field_placeholder="🚀 Cari partner"
 )
 
-# ─── FIX 1: Persistent storage (SQLite) ─────────────────────────────────────
-# Data tidak hilang saat bot restart.
+# ─── Database (Turso) ────────────────────────────────────────────────────────
 
 def init_db():
-    con = sqlite3.connect("bot_state.db")
+    con = get_con()
     cur = con.cursor()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS active_chats (
@@ -63,24 +71,24 @@ def init_db():
     con.close()
 
 def db_add_waiting(user_id: int):
-    con = sqlite3.connect("bot_state.db")
+    con = get_con()
     con.execute("INSERT OR IGNORE INTO waiting_users VALUES (?, ?)", (user_id, time.time()))
     con.commit(); con.close()
 
 def db_remove_waiting(user_id: int):
-    con = sqlite3.connect("bot_state.db")
+    con = get_con()
     con.execute("DELETE FROM waiting_users WHERE user_id = ?", (user_id,))
     con.commit(); con.close()
 
 def db_is_waiting(user_id: int) -> bool:
-    con = sqlite3.connect("bot_state.db")
+    con = get_con()
     row = con.execute("SELECT 1 FROM waiting_users WHERE user_id = ?", (user_id,)).fetchone()
     con.close()
     return row is not None
 
 def db_pop_any_waiting(exclude: int) -> int | None:
     """Ambil satu user dari waiting list (selain `exclude`), lalu hapus dari list."""
-    con = sqlite3.connect("bot_state.db")
+    con = get_con()
     row = con.execute(
         "SELECT user_id FROM waiting_users WHERE user_id != ? ORDER BY joined_at LIMIT 1",
         (exclude,)
@@ -92,26 +100,26 @@ def db_pop_any_waiting(exclude: int) -> int | None:
     return row[0] if row else None
 
 def db_add_chat(user_id: int, partner_id: int):
-    con = sqlite3.connect("bot_state.db")
+    con = get_con()
     con.execute("INSERT OR REPLACE INTO active_chats VALUES (?, ?)", (user_id, partner_id))
     con.execute("INSERT OR REPLACE INTO active_chats VALUES (?, ?)", (partner_id, user_id))
     con.commit(); con.close()
 
 def db_get_partner(user_id: int) -> int | None:
-    con = sqlite3.connect("bot_state.db")
+    con = get_con()
     row = con.execute("SELECT partner_id FROM active_chats WHERE user_id = ?", (user_id,)).fetchone()
     con.close()
     return row[0] if row else None
 
 def db_remove_chat(user_id: int, partner_id: int | None = None):
-    con = sqlite3.connect("bot_state.db")
+    con = get_con()
     con.execute("DELETE FROM active_chats WHERE user_id = ?", (user_id,))
     if partner_id:
         con.execute("DELETE FROM active_chats WHERE user_id = ?", (partner_id,))
     con.commit(); con.close()
 
 def db_get_stats() -> dict:
-    con = sqlite3.connect("bot_state.db")
+    con = get_con()
     waiting  = con.execute("SELECT COUNT(*) FROM waiting_users").fetchone()[0]
     chatting = con.execute("SELECT COUNT(*) FROM active_chats").fetchone()[0] // 2
     total    = con.execute("SELECT COUNT(*) FROM users").fetchone()[0]
@@ -119,7 +127,7 @@ def db_get_stats() -> dict:
     return {"waiting": waiting, "chatting": chatting, "total": total}
 
 def db_register_user(user_id: int, referred_by: int | None = None):
-    con = sqlite3.connect("bot_state.db")
+    con = get_con()
     is_new = con.execute("SELECT 1 FROM users WHERE user_id = ?", (user_id,)).fetchone() is None
     if is_new:
         con.execute(
@@ -135,7 +143,7 @@ def db_register_user(user_id: int, referred_by: int | None = None):
     return is_new
 
 def db_get_referral_count(user_id: int) -> int:
-    con = sqlite3.connect("bot_state.db")
+    con = get_con()
     count = con.execute(
         "SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", (user_id,)
     ).fetchone()[0]
