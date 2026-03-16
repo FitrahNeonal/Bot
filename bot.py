@@ -3,8 +3,6 @@ import logging
 import os
 import time
 
-import libsql_experimental as libsql
-
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import Forbidden, BadRequest, TelegramError
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
@@ -22,18 +20,6 @@ TURSO_URL   = os.environ["TURSO_URL"]
 TURSO_TOKEN = os.environ["TURSO_TOKEN"]
 ADMIN_ID    = 7396627060
 
-def get_con():
-    return libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
-
-def query_turso(sql: str) -> list:
-    url = TURSO_URL.replace("libsql://", "https://") + "/v2/pipeline"
-    import urllib.request, json as _json
-    data = _json.dumps({"requests": [{"type": "execute", "stmt": {"sql": sql}}, {"type": "close"}]}).encode()
-    req = urllib.request.Request(url, data=data, headers={"Authorization": f"Bearer {TURSO_TOKEN}", "Content-Type": "application/json"})
-    with urllib.request.urlopen(req) as res:
-        rows = _json.loads(res.read())["results"][0]["response"]["result"]["rows"]
-    return [[col.get("value") for col in row] for row in rows]
-
 # ─── UI ─────────────────────────────────────────────────────────────────────
 FEEDBACK_BUTTON = InlineKeyboardMarkup([
     [InlineKeyboardButton("📝 Beri Feedback", url="https://feedbackneo.vercel.app")]
@@ -45,120 +31,91 @@ CARI_PARTNER = ReplyKeyboardMarkup(
     input_field_placeholder="🚀 Cari partner"
 )
 
-# ─── Database (Turso) ────────────────────────────────────────────────────────
+# ─── Database (Turso HTTP) ───────────────────────────────────────────────────
+
+def execute_turso(sql: str, params: list = None) -> list:
+    """Jalankan query ke Turso via HTTP. Untuk SELECT return rows, lainnya return []."""
+    import urllib.request, json as _json
+    stmt = {"sql": sql}
+    if params:
+        stmt["args"] = [{"type": "text", "value": str(p)} if p is not None else {"type": "null"} for p in params]
+    data = _json.dumps({"requests": [{"type": "execute", "stmt": stmt}, {"type": "close"}]}).encode()
+    req = urllib.request.Request(
+        TURSO_URL.replace("libsql://", "https://") + "/v2/pipeline",
+        data=data,
+        headers={"Authorization": f"Bearer {TURSO_TOKEN}", "Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req) as res:
+        result = _json.loads(res.read())["results"][0]["response"]["result"]
+    return [[col.get("value") for col in row] for row in result["rows"]]
 
 def init_db():
-    con = get_con()
-    cur = con.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS active_chats (
-            user_id   INTEGER PRIMARY KEY,
-            partner_id INTEGER NOT NULL
-        )
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS waiting_users (
-            user_id   INTEGER PRIMARY KEY,
-            joined_at REAL NOT NULL
-        )
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id     INTEGER PRIMARY KEY,
-            first_seen  REAL NOT NULL,
-            referred_by INTEGER DEFAULT NULL
-        )
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS referrals (
-            referrer_id  INTEGER NOT NULL,
-            referred_id  INTEGER NOT NULL,
-            referred_at  REAL NOT NULL,
-            PRIMARY KEY (referrer_id, referred_id)
-        )
-    """)
-    con.commit()
-    con.close()
+    for sql in [
+        """CREATE TABLE IF NOT EXISTS active_chats (
+            user_id INTEGER PRIMARY KEY, partner_id INTEGER NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS waiting_users (
+            user_id INTEGER PRIMARY KEY, joined_at REAL NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY, first_seen REAL NOT NULL, referred_by INTEGER DEFAULT NULL)""",
+        """CREATE TABLE IF NOT EXISTS referrals (
+            referrer_id INTEGER NOT NULL, referred_id INTEGER NOT NULL, referred_at REAL NOT NULL,
+            PRIMARY KEY (referrer_id, referred_id))""",
+    ]:
+        execute_turso(sql)
 
 def db_add_waiting(user_id: int):
-    con = get_con()
-    con.execute("INSERT OR IGNORE INTO waiting_users VALUES (?, ?)", (user_id, time.time()))
-    con.commit(); con.close()
+    execute_turso("INSERT OR IGNORE INTO waiting_users VALUES (?, ?)", [user_id, time.time()])
 
 def db_remove_waiting(user_id: int):
-    con = get_con()
-    con.execute("DELETE FROM waiting_users WHERE user_id = ?", (user_id,))
-    con.commit(); con.close()
+    execute_turso("DELETE FROM waiting_users WHERE user_id = ?", [user_id])
 
 def db_is_waiting(user_id: int) -> bool:
-    con = get_con()
-    row = con.execute("SELECT 1 FROM waiting_users WHERE user_id = ?", (user_id,)).fetchone()
-    con.close()
-    return row is not None
+    rows = execute_turso("SELECT 1 FROM waiting_users WHERE user_id = ?", [user_id])
+    return len(rows) > 0
 
 def db_pop_any_waiting(exclude: int) -> int | None:
-    """Ambil satu user dari waiting list (selain `exclude`), lalu hapus dari list."""
-    con = get_con()
-    row = con.execute(
-        "SELECT user_id FROM waiting_users WHERE user_id != ? ORDER BY joined_at LIMIT 1",
-        (exclude,)
-    ).fetchone()
-    if row:
-        con.execute("DELETE FROM waiting_users WHERE user_id = ?", (row[0],))
-        con.commit()
-    con.close()
-    return row[0] if row else None
+    rows = execute_turso(
+        "SELECT user_id FROM waiting_users WHERE user_id != ? ORDER BY joined_at LIMIT 1", [exclude]
+    )
+    if rows:
+        partner = int(rows[0][0])
+        execute_turso("DELETE FROM waiting_users WHERE user_id = ?", [partner])
+        return partner
+    return None
 
 def db_add_chat(user_id: int, partner_id: int):
-    con = get_con()
-    con.execute("INSERT OR REPLACE INTO active_chats VALUES (?, ?)", (user_id, partner_id))
-    con.execute("INSERT OR REPLACE INTO active_chats VALUES (?, ?)", (partner_id, user_id))
-    con.commit(); con.close()
+    execute_turso("INSERT OR REPLACE INTO active_chats VALUES (?, ?)", [user_id, partner_id])
+    execute_turso("INSERT OR REPLACE INTO active_chats VALUES (?, ?)", [partner_id, user_id])
 
 def db_get_partner(user_id: int) -> int | None:
-    con = get_con()
-    row = con.execute("SELECT partner_id FROM active_chats WHERE user_id = ?", (user_id,)).fetchone()
-    con.close()
-    return row[0] if row else None
+    rows = execute_turso("SELECT partner_id FROM active_chats WHERE user_id = ?", [user_id])
+    return int(rows[0][0]) if rows else None
 
 def db_remove_chat(user_id: int, partner_id: int | None = None):
-    con = get_con()
-    con.execute("DELETE FROM active_chats WHERE user_id = ?", (user_id,))
+    execute_turso("DELETE FROM active_chats WHERE user_id = ?", [user_id])
     if partner_id:
-        con.execute("DELETE FROM active_chats WHERE user_id = ?", (partner_id,))
-    con.commit(); con.close()
+        execute_turso("DELETE FROM active_chats WHERE user_id = ?", [partner_id])
 
 def db_get_stats() -> dict:
-    con = get_con()
-    waiting  = con.execute("SELECT COUNT(*) FROM waiting_users").fetchone()[0]
-    chatting = con.execute("SELECT COUNT(*) FROM active_chats").fetchone()[0] // 2
-    total    = con.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-    con.close()
+    waiting  = int(execute_turso("SELECT COUNT(*) FROM waiting_users")[0][0] or 0)
+    chatting = int(execute_turso("SELECT COUNT(*) FROM active_chats")[0][0] or 0) // 2
+    total    = int(execute_turso("SELECT COUNT(*) FROM users")[0][0] or 0)
     return {"waiting": waiting, "chatting": chatting, "total": total}
 
-def db_register_user(user_id: int, referred_by: int | None = None):
-    con = get_con()
-    is_new = con.execute("SELECT 1 FROM users WHERE user_id = ?", (user_id,)).fetchone() is None
+def db_register_user(user_id: int, referred_by: int | None = None) -> bool:
+    rows = execute_turso("SELECT 1 FROM users WHERE user_id = ?", [user_id])
+    is_new = len(rows) == 0
     if is_new:
-        con.execute(
-            "INSERT INTO users VALUES (?, ?, ?)",
-            (user_id, time.time(), referred_by)
-        )
+        execute_turso("INSERT INTO users VALUES (?, ?, ?)", [user_id, time.time(), referred_by])
         if referred_by:
-            con.execute(
-                "INSERT OR IGNORE INTO referrals VALUES (?, ?, ?)",
-                (referred_by, user_id, time.time())
-            )
-    con.commit(); con.close()
+            execute_turso("INSERT OR IGNORE INTO referrals VALUES (?, ?, ?)", [referred_by, user_id, time.time()])
     return is_new
 
 def db_get_referral_count(user_id: int) -> int:
-    con = get_con()
-    count = con.execute(
-        "SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", (user_id,)
-    ).fetchone()[0]
-    con.close()
-    return count
+    rows = execute_turso("SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", [user_id])
+    return int(rows[0][0] or 0)
+
+
 
 # ─── FIX 2: asyncio.Lock – cegah race condition saat matchmaking ─────────────
 match_lock = asyncio.Lock()
@@ -477,8 +434,8 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ── /admin stats ──────────────────────────────────────────────
     if cmd == "stats":
         s = db_get_stats()
-        total_referrals = int(query_turso("SELECT COUNT(*) FROM referrals")[0][0] or 0)
-        total_chats     = int(query_turso("SELECT COUNT(*) FROM active_chats")[0][0] or 0) // 2
+        total_referrals = int(execute_turso("SELECT COUNT(*) FROM referrals")[0][0] or 0)
+        total_chats     = int(execute_turso("SELECT COUNT(*) FROM active_chats")[0][0] or 0) // 2
 
         await context.bot.send_message(
             chat_id=ADMIN_ID,
@@ -495,7 +452,7 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── /admin users ──────────────────────────────────────────────
     elif cmd == "users":
-        rows = query_turso(
+        rows = execute_turso(
             "SELECT user_id, first_seen, referred_by FROM users ORDER BY first_seen DESC LIMIT 20"
         )
         if not rows:
@@ -529,7 +486,7 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         pesan = " ".join(args[1:])
-        rows  = query_turso("SELECT user_id FROM users")
+        rows  = execute_turso("SELECT user_id FROM users")
         success = 0
 
         for (user_id,) in rows:
@@ -557,7 +514,7 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def notify_online(app):
     """Kirim notif ke semua yang lagi aktif chat saat bot nyala."""
-    rows = query_turso("SELECT DISTINCT user_id FROM active_chats")
+    rows = execute_turso("SELECT DISTINCT user_id FROM active_chats")
     for (user_id,) in rows:
         try:
             await app.bot.send_message(
