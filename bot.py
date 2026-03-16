@@ -536,7 +536,8 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await context.bot.send_message(
                     chat_id=user_id,
-                    text=f"📢 {pesan}"
+                    text=f"📢 <b>Pengumuman</b>\n\n{pesan}\n\n— owner",
+                    parse_mode="HTML"
                 )
                 success += 1
             except Exception:
