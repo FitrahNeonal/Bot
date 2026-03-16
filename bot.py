@@ -32,7 +32,7 @@ def query_turso(sql: str) -> list:
     req = urllib.request.Request(url, data=data, headers={"Authorization": f"Bearer {TURSO_TOKEN}", "Content-Type": "application/json"})
     with urllib.request.urlopen(req) as res:
         rows = _json.loads(res.read())["results"][0]["response"]["result"]["rows"]
-    return [[col["value"] for col in row] for row in rows]
+    return [[col.get("value") for col in row] for row in rows]
 
 # ─── UI ─────────────────────────────────────────────────────────────────────
 FEEDBACK_BUTTON = InlineKeyboardMarkup([
@@ -477,8 +477,8 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ── /admin stats ──────────────────────────────────────────────
     if cmd == "stats":
         s = db_get_stats()
-        total_referrals = query_turso("SELECT COUNT(*) FROM referrals")[0][0]
-        total_chats     = query_turso("SELECT COUNT(*) FROM active_chats")[0][0] // 2
+        total_referrals = int(query_turso("SELECT COUNT(*) FROM referrals")[0][0] or 0)
+        total_chats     = int(query_turso("SELECT COUNT(*) FROM active_chats")[0][0] or 0) // 2
 
         await context.bot.send_message(
             chat_id=ADMIN_ID,
@@ -505,7 +505,10 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines = ["👥 <b>20 User Terbaru</b>\n"]
         for user_id, first_seen, referred_by in rows:
             import datetime
-            tgl = datetime.datetime.fromtimestamp(first_seen).strftime("%d/%m %H:%M")
+            try:
+                tgl = datetime.datetime.fromtimestamp(float(first_seen)).strftime("%d/%m %H:%M")
+            except (TypeError, ValueError):
+                tgl = "?"
             ref = f" (ref: {referred_by})" if referred_by else ""
             lines.append(f"• <code>{user_id}</code>{ref} — {tgl}")
 
@@ -533,8 +536,7 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await context.bot.send_message(
                     chat_id=user_id,
-                    text=f"📢 {pesan}",
-                    parse_mode="HTML"
+                    text=f"📢 {pesan}"
                 )
                 success += 1
             except Exception:
