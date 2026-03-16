@@ -30,7 +30,7 @@ FEEDBACK_BUTTON = InlineKeyboardMarkup([
 ])
 
 CARI_PARTNER = ReplyKeyboardMarkup(
-    [["🚀 Cari partner"]],
+    [["🚀 Cari partner"], ["📊 Stats"]],
     resize_keyboard=True,
     input_field_placeholder="🚀 Cari partner"
 )
@@ -273,6 +273,11 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Tombol cari partner
     if update.message.text == "🚀 Cari partner":
         await find(update, context)
+        return
+
+    # Tombol stats
+    if update.message.text == "📊 Stats":
+        await stats(update, context)
         return
 
     user_id = update.effective_user.id
