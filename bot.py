@@ -24,6 +24,15 @@ TURSO_TOKEN = os.environ["TURSO_TOKEN"]
 def get_con():
     return libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
 
+def query_turso(sql: str) -> list:
+    url = TURSO_URL.replace("libsql://", "https://") + "/v2/pipeline"
+    import urllib.request, json as _json
+    data = _json.dumps({"requests": [{"type": "execute", "stmt": {"sql": sql}}, {"type": "close"}]}).encode()
+    req = urllib.request.Request(url, data=data, headers={"Authorization": f"Bearer {TURSO_TOKEN}", "Content-Type": "application/json"})
+    with urllib.request.urlopen(req) as res:
+        rows = _json.loads(res.read())["results"][0]["response"]["result"]["rows"]
+    return [[col["value"] for col in row] for row in rows]
+
 # ─── UI ─────────────────────────────────────────────────────────────────────
 FEEDBACK_BUTTON = InlineKeyboardMarkup([
     [InlineKeyboardButton("📝 Beri Feedback", url="https://feedbackneo.vercel.app")]
