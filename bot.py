@@ -440,10 +440,25 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-def main():
-    init_db()  # Inisialisasi database saat pertama jalan
+async def notify_online(app):
+    """Kirim notif ke semua yang lagi aktif chat saat bot nyala."""
+    rows = query_turso("SELECT DISTINCT user_id FROM active_chats")
+    for (user_id,) in rows:
+        try:
+            await app.bot.send_message(
+                chat_id=user_id,
+                text="✅ <i>Bot udah nyala lagi, lanjut chat!</i>",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+    logger.info("Notif startup dikirim ke %d user.", len(rows))
 
-    app = ApplicationBuilder().token(TOKEN).build()
+
+def main():
+    init_db()
+
+    app = ApplicationBuilder().token(TOKEN).post_init(notify_online).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
