@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # ─── Turso config ────────────────────────────────────────────────────────────
 TURSO_URL   = os.environ["TURSO_URL"]
 TURSO_TOKEN = os.environ["TURSO_TOKEN"]
+ADMIN_ID    = 7396627060
 
 def get_con():
     return libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
@@ -449,7 +450,109 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def notify_online(app):
+def is_admin(update: Update) -> bool:
+    return update.effective_user.id == ADMIN_ID
+
+
+async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update):
+        return
+
+    args = context.args
+    if not args:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=(
+                "🛠 <b>Admin Panel</b>\n\n"
+                "/admin stats — statistik lengkap\n"
+                "/admin users — user terbaru\n"
+                "/admin broadcast &lt;pesan&gt; — kirim pesan ke semua user"
+            ),
+            parse_mode="HTML"
+        )
+        return
+
+    cmd = args[0].lower()
+
+    # ── /admin stats ──────────────────────────────────────────────
+    if cmd == "stats":
+        s = db_get_stats()
+        total_referrals = query_turso("SELECT COUNT(*) FROM referrals")[0][0]
+        total_chats     = query_turso("SELECT COUNT(*) FROM active_chats")[0][0] // 2
+
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=(
+                "📊 <b>Admin Stats</b>\n\n"
+                f"👥 Total user: <b>{s['total']}</b>\n"
+                f"💬 Lagi chat: <b>{s['chatting']}</b> pasang\n"
+                f"🔎 Lagi waiting: <b>{s['waiting']}</b> orang\n"
+                f"🔗 Total referral: <b>{total_referrals}</b>\n"
+                f"💡 Pasang aktif sekarang: <b>{total_chats}</b>"
+            ),
+            parse_mode="HTML"
+        )
+
+    # ── /admin users ──────────────────────────────────────────────
+    elif cmd == "users":
+        rows = query_turso(
+            "SELECT user_id, first_seen, referred_by FROM users ORDER BY first_seen DESC LIMIT 20"
+        )
+        if not rows:
+            await context.bot.send_message(chat_id=ADMIN_ID, text="Belum ada user.")
+            return
+
+        lines = ["👥 <b>20 User Terbaru</b>\n"]
+        for user_id, first_seen, referred_by in rows:
+            import datetime
+            tgl = datetime.datetime.fromtimestamp(first_seen).strftime("%d/%m %H:%M")
+            ref = f" (ref: {referred_by})" if referred_by else ""
+            lines.append(f"• <code>{user_id}</code>{ref} — {tgl}")
+
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text="\n".join(lines),
+            parse_mode="HTML"
+        )
+
+    # ── /admin broadcast <pesan> ──────────────────────────────────
+    elif cmd == "broadcast":
+        if len(args) < 2:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text="⚠️ Format: /admin broadcast &lt;pesan&gt;",
+                parse_mode="HTML"
+            )
+            return
+
+        pesan = " ".join(args[1:])
+        rows  = query_turso("SELECT user_id FROM users")
+        success = 0
+
+        for (user_id,) in rows:
+            try:
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=f"📢 {pesan}",
+                    parse_mode="HTML"
+                )
+                success += 1
+            except Exception:
+                pass
+
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"✅ Broadcast selesai — {success}/{len(rows)} user berhasil."
+        )
+
+    else:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text="⚠️ Command tidak dikenal. Ketik /admin untuk bantuan."
+        )
+
+
+
     """Kirim notif ke semua yang lagi aktif chat saat bot nyala."""
     rows = query_turso("SELECT DISTINCT user_id FROM active_chats")
     for (user_id,) in rows:
@@ -476,6 +579,7 @@ def main():
     app.add_handler(CommandHandler("find", find))
     app.add_handler(CommandHandler("skip", skip))
     app.add_handler(CommandHandler("stop", stop))
+    app.add_handler(CommandHandler("admin", admin))
     app.add_handler(MessageHandler(~filters.COMMAND, message))
 
     logger.info("Bot started.")
