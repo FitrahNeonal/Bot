@@ -552,7 +552,7 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-
+async def notify_online(app):
     """Kirim notif ke semua yang lagi aktif chat saat bot nyala."""
     rows = query_turso("SELECT DISTINCT user_id FROM active_chats")
     for (user_id,) in rows:
