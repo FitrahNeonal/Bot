@@ -421,6 +421,29 @@ async def find(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
+
+    # Cek waiting broadcast dari admin
+    if update.effective_user.id == ADMIN_ID and context.user_data.get("waiting_broadcast"):
+        context.user_data["waiting_broadcast"] = False
+        pesan = update.message.text
+        rows  = execute_turso("SELECT user_id FROM users WHERE banned = 0")
+        success = 0
+        for (user_id,) in rows:
+            try:
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=f"📢 <b>Pengumuman</b>\n\n{pesan}\n\n— owner",
+                    parse_mode="HTML"
+                )
+                success += 1
+            except Exception:
+                pass
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"✅ Broadcast selesai — {success}/{len(rows)} user berhasil."
+        )
+        return
+
     if update.message.text == "🚀 Cari partner":
         await find(update, context)
         return
@@ -781,29 +804,10 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=ADMIN_ID, text="\n".join(lines), parse_mode="HTML")
 
     elif cmd == "broadcast":
-        if len(args) < 2:
-            await context.bot.send_message(
-                chat_id=ADMIN_ID,
-                text="⚠️ Format: /admin broadcast &lt;pesan&gt;",
-                parse_mode="HTML"
-            )
-            return
-        pesan   = " ".join(args[1:])
-        rows    = execute_turso("SELECT user_id FROM users WHERE banned = 0")
-        success = 0
-        for (user_id,) in rows:
-            try:
-                await context.bot.send_message(
-                    chat_id=user_id,
-                    text=f"📢 <b>Pengumuman</b>\n\n{pesan}\n\n— owner",
-                    parse_mode="HTML"
-                )
-                success += 1
-            except Exception:
-                pass
+        context.user_data["waiting_broadcast"] = True
         await context.bot.send_message(
             chat_id=ADMIN_ID,
-            text=f"✅ Broadcast selesai — {success}/{len(rows)} user berhasil."
+            text="📝 Kirim pesannya sekarang (bisa multiline):",
         )
 
     else:
