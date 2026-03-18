@@ -499,9 +499,9 @@ async def _do_find(user_id: int, context, gender_pref: str | None = None):
         pref_text = f" (nyari: {gender_pref})" if gender_pref and gender_pref != "random" else ""
         await context.bot.send_message(
             chat_id=user_id,
-            text=f"🔎 <i>Lagi nyariin partner buat kamu{pref_text}...</i>\nAda <b>{online}</b> orang online sekarang.",
+            text=f"🔎 <i>Lagi nyariin partner buat kamu{pref_text}...</i>\nAda <b>{online}</b> orang online sekarang.\n\nKetik /stop untuk batalkan.",
             parse_mode="HTML",
-            reply_markup=btn_waiting()
+            reply_markup=ReplyKeyboardRemove()
         )
         # Schedule fallback ke random setelah 2 menit
         if gender_pref and gender_pref != "random":
@@ -765,7 +765,12 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if db_is_waiting(user_id):
         db_remove_waiting(user_id)
-        await context.bot.send_message(chat_id=user_id, text="🛑 <i>Pencarian dibatalkan. Santuy.</i>", parse_mode="HTML")
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="🛑 <i>Pencarian dibatalkan. Santuy.</i>",
+            parse_mode="HTML",
+            reply_markup=CARI_PARTNER
+        )
         return
     if not db_get_partner(user_id):
         await context.bot.send_message(
