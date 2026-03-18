@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import Forbidden, BadRequest, TelegramError
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
@@ -439,6 +439,11 @@ async def _force_disconnect(user_id: int, partner_id: int, context):
             parse_mode="HTML",
             reply_markup=btn_find_again()
         )
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="Mau cari lagi?",
+            reply_markup=CARI_PARTNER
+        )
     except TelegramError:
         pass
 
@@ -489,8 +494,11 @@ async def _do_find(user_id: int, context, gender_pref: str | None = None):
             "✅ <b>Partner ketemu! Nikmati obrolan kalian.</b>\n\n"
             f"<i>{tip}</i>"
         )
-        await context.bot.send_message(chat_id=user_id,  text=msg, parse_mode="HTML", reply_markup=btn_chat())
-        await context.bot.send_message(chat_id=partner,  text=msg, parse_mode="HTML", reply_markup=btn_chat())
+        # Sembunyikan ReplyKeyboard, lalu kirim inline buttons
+        await context.bot.send_message(chat_id=user_id, text=msg, parse_mode="HTML", reply_markup=ReplyKeyboardRemove())
+        await context.bot.send_message(chat_id=user_id, text="⏭ Skip  |  🛑 Stop", reply_markup=btn_chat())
+        await context.bot.send_message(chat_id=partner, text=msg, parse_mode="HTML", reply_markup=ReplyKeyboardRemove())
+        await context.bot.send_message(chat_id=partner, text="⏭ Skip  |  🛑 Stop", reply_markup=btn_chat())
         logger.info("Matched: %s <-> %s", user_id, partner)
     else:
         db_add_waiting(user_id, gender_pref)
@@ -569,10 +577,20 @@ async def _do_stop(user_id: int, context):
         reply_markup=btn_after_stop(partner)
     )
     await context.bot.send_message(
+        chat_id=user_id,
+        text="Mau cari lagi?",
+        reply_markup=CARI_PARTNER
+    )
+    await context.bot.send_message(
         chat_id=partner,
         text="💨 <i>Partner kamu udah cabut.</i>\n\nBtw, ada feedback buat kami? Bebas banget.",
         parse_mode="HTML",
         reply_markup=btn_after_stop(user_id)
+    )
+    await context.bot.send_message(
+        chat_id=partner,
+        text="Mau cari lagi?",
+        reply_markup=CARI_PARTNER
     )
 
 # ─── Handlers ────────────────────────────────────────────────────────────────
