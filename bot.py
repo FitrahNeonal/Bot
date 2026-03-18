@@ -487,7 +487,7 @@ async def _do_find(user_id: int, context, gender_pref: str | None = None):
         tip = random.choice(MATCHED_MESSAGES)
         msg = (
             "✅ <b>Partner ketemu! Nikmati obrolan kalian.</b>\n\n"
-            f"<b>{tip}</b>"
+            f"<b><i>{tip}</i></b>"
         )
         # Hapus ReplyKeyboard untuk user_id (dia langsung matched, belum lewat waiting)
         await context.bot.send_message(chat_id=user_id, text="🔗 Nyambung!", reply_markup=ReplyKeyboardRemove())
