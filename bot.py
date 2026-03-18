@@ -286,8 +286,8 @@ def db_get_gender_pref(user_id: int) -> str | None:
 
 def db_add_chat(user_id: int, partner_id: int):
     now = time.time()
-    execute_turso("INSERT OR REPLACE INTO active_chats VALUES (?, ?, 0, ?)", [user_id, partner_id, now])
-    execute_turso("INSERT OR REPLACE INTO active_chats VALUES (?, ?, 0, ?)", [partner_id, user_id, now])
+    execute_turso("INSERT OR REPLACE INTO active_chats (user_id, partner_id, msg_count, started_at) VALUES (?, ?, 0, ?)", [user_id, partner_id, now])
+    execute_turso("INSERT OR REPLACE INTO active_chats (user_id, partner_id, msg_count, started_at) VALUES (?, ?, 0, ?)", [partner_id, user_id, now])
 
 def db_get_partner(user_id: int) -> int | None:
     rows = execute_turso("SELECT partner_id FROM active_chats WHERE user_id = ?", [user_id])
@@ -310,7 +310,7 @@ def db_get_chat_info(user_id: int) -> dict | None:
     return {
         "partner_id": int(rows[0][0]),
         "msg_count": int(rows[0][1] or 0),
-        "started_at": float(rows[0][2] or 0),
+        "started_at": float(rows[0][2]) if rows[0][2] else time.time(),
     }
 
 def db_needs_confirmation(user_id: int) -> bool:
