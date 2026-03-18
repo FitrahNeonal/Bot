@@ -166,14 +166,18 @@ def init_db():
             started_at REAL NOT NULL)""",
         """CREATE TABLE IF NOT EXISTS waiting_users (
             user_id INTEGER PRIMARY KEY,
-            joined_at REAL NOT NULL)""",
+            joined_at REAL NOT NULL,
+            gender_pref TEXT DEFAULT NULL)""",
         """CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
             first_seen REAL NOT NULL,
             referred_by INTEGER DEFAULT NULL,
             banned INTEGER DEFAULT 0,
             skip_streak INTEGER DEFAULT 0,
-            last_skip REAL DEFAULT 0)""",
+            last_skip REAL DEFAULT 0,
+            gender TEXT DEFAULT NULL,
+            kota TEXT DEFAULT NULL,
+            umur TEXT DEFAULT NULL)""",
         """CREATE TABLE IF NOT EXISTS referrals (
             referrer_id INTEGER NOT NULL,
             referred_id INTEGER NOT NULL,
@@ -651,7 +655,6 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await stats(update, context)
         return
 
-    user_id = update.effective_user.id
     partner = db_get_partner(user_id)
 
     if not partner:
@@ -939,7 +942,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         after = context.user_data.get("after_gender")
         context.user_data["after_gender"] = None
 
-        if after == "find":
+        if after in ("find", "findgender"):
+            # Onboarding flow — lanjut ke kota
             context.user_data["after_onboarding"] = "find"
             await context.bot.send_message(
                 chat_id=user_id,
@@ -948,6 +952,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=btn_kota()
             )
         else:
+            # Edit dari /profile — selesai
             await context.bot.send_message(
                 chat_id=user_id,
                 text=f"✅ Gender diupdate: <b>{gender}</b>",
@@ -989,8 +994,9 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f"✅ Umur disimpan: <b>{umur}</b>\n\nProfil kamu sudah lengkap! 🎉",
             parse_mode="HTML"
         )
-        if context.user_data.get("after_onboarding") == "find":
-            context.user_data["after_onboarding"] = None
+        # Kalau belum punya partner dan belum waiting → auto find
+        after = context.user_data.pop("after_onboarding", None)
+        if after == "find" or (not db_get_partner(user_id) and not db_is_waiting(user_id)):
             await _do_find(user_id, context)
         return
 
@@ -999,8 +1005,9 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=user_id,
             text="Oke dilewati! Profil kamu sudah disimpan. 🎉"
         )
-        if context.user_data.get("after_onboarding") == "find":
-            context.user_data["after_onboarding"] = None
+        # Kalau belum punya partner dan belum waiting → auto find
+        after = context.user_data.pop("after_onboarding", None)
+        if after == "find" or (not db_get_partner(user_id) and not db_is_waiting(user_id)):
             await _do_find(user_id, context)
         return
 
