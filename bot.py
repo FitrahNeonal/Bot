@@ -177,7 +177,8 @@ def init_db():
             last_skip REAL DEFAULT 0,
             gender TEXT DEFAULT NULL,
             kota TEXT DEFAULT NULL,
-            umur TEXT DEFAULT NULL)""",
+            umur TEXT DEFAULT NULL,
+            pending_find INTEGER DEFAULT 0)""",
         """CREATE TABLE IF NOT EXISTS referrals (
             referrer_id INTEGER NOT NULL,
             referred_id INTEGER NOT NULL,
@@ -283,7 +284,7 @@ def db_register_user(user_id: int, referred_by: int | None = None) -> bool:
     rows = execute_turso("SELECT 1 FROM users WHERE user_id = ?", [user_id])
     is_new = len(rows) == 0
     if is_new:
-        execute_turso("INSERT INTO users VALUES (?, ?, ?, 0, 0, 0)", [user_id, time.time(), referred_by])
+        execute_turso("INSERT INTO users VALUES (?, ?, ?, 0, 0, 0, NULL, NULL, NULL, 0)", [user_id, time.time(), referred_by])
         if referred_by:
             execute_turso("INSERT OR IGNORE INTO referrals VALUES (?, ?, ?)", [referred_by, user_id, time.time()])
     return is_new
@@ -316,6 +317,13 @@ def db_set_umur(user_id: int, umur: str):
 def db_has_gender(user_id: int) -> bool:
     rows = execute_turso("SELECT gender FROM users WHERE user_id = ?", [user_id])
     return bool(rows and rows[0][0] is not None)
+
+def db_set_pending_find(user_id: int, val: int):
+    execute_turso("UPDATE users SET pending_find = ? WHERE user_id = ?", [val, user_id])
+
+def db_get_pending_find(user_id: int) -> bool:
+    rows = execute_turso("SELECT pending_find FROM users WHERE user_id = ?", [user_id])
+    return bool(rows and rows[0][0])
 
 def db_is_banned(user_id: int) -> bool:
     rows = execute_turso("SELECT banned FROM users WHERE user_id = ?", [user_id])
@@ -408,6 +416,7 @@ async def _do_find(user_id: int, context, gender_pref: str | None = None):
     # Cek gender dulu — wajib sebelum find
     if not db_has_gender(user_id):
         context.user_data["after_gender"] = "find"
+        db_set_pending_find(user_id, 1)
         await context.bot.send_message(
             chat_id=user_id,
             text="👤 Sebelum mulai, kamu itu?",
@@ -939,11 +948,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("set_gender_"):
         gender = data.split("set_gender_")[1]
         db_set_gender(user_id, gender)
-        after = context.user_data.get("after_gender")
+        after = context.user_data.get("after_gender") or ("find" if db_get_pending_find(user_id) else None)
         context.user_data["after_gender"] = None
 
         if after in ("find", "findgender"):
-            # Onboarding flow — lanjut ke kota
             context.user_data["after_onboarding"] = "find"
             await context.bot.send_message(
                 chat_id=user_id,
@@ -952,7 +960,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=btn_kota()
             )
         else:
-            # Edit dari /profile — selesai
             await context.bot.send_message(
                 chat_id=user_id,
                 text=f"✅ Gender diupdate: <b>{gender}</b>",
@@ -994,9 +1001,9 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f"✅ Umur disimpan: <b>{umur}</b>\n\nProfil kamu sudah lengkap! 🎉",
             parse_mode="HTML"
         )
-        # Kalau belum punya partner dan belum waiting → auto find
         after = context.user_data.pop("after_onboarding", None)
-        if after == "find" or (not db_get_partner(user_id) and not db_is_waiting(user_id)):
+        if after == "find" or db_get_pending_find(user_id):
+            db_set_pending_find(user_id, 0)
             await _do_find(user_id, context)
         return
 
@@ -1005,9 +1012,9 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=user_id,
             text="Oke dilewati! Profil kamu sudah disimpan. 🎉"
         )
-        # Kalau belum punya partner dan belum waiting → auto find
         after = context.user_data.pop("after_onboarding", None)
-        if after == "find" or (not db_get_partner(user_id) and not db_is_waiting(user_id)):
+        if after == "find" or db_get_pending_find(user_id):
+            db_set_pending_find(user_id, 0)
             await _do_find(user_id, context)
         return
 
