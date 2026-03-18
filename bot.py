@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import random
 import time
 
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
@@ -32,6 +33,51 @@ STREAK_LIMIT   = 3
 FEEDBACK_BUTTON = InlineKeyboardMarkup([
     [InlineKeyboardButton("📝 Beri Feedback", url="https://feedbackneo.vercel.app")]
 ])
+
+# ─── Matched Messages (Ramadan Edition) ──────────────────────────────────────
+MATCHED_MESSAGES = [
+    # Reminder ibadah
+    "Fokus cari berkah, bukan cari celah buat maksiat. 🚫",
+    "Sahur tadi makan apa? Semoga kuat puasanya sampai maghrib! ☀️",
+    "Udah dzuhur belum? Ngobrol boleh, sholat jangan sampai lupa. 🕌",
+    "Ramadan momen buat jadi manusia lebih baik, mulai dari chat ini. 🌟",
+    "Sambil nunggu buka, ngobrol yang berfaedah ya. 🌙",
+    "Siapa tau dari ngobrol ini dapet temen diskusi terbaik kamu. 🤝",
+    "Ngobrol yang bikin pahala nambah, bukan malah berkurang. ✨",
+    "Partner lu berhak dapet chat yang bikin adem hati, bukan bikin emosi. 🧘",
+    "Inget, malaikat Rakib-Atid lagi lembur nyatat amal di bulan Ramadan. 📝",
+    "Sopan dikit, malaikat lagi keliling nyebar rahmat, jangan malah maksiat. 🌧️",
+
+    # Anti-sange
+    "Jangan bikin partner ilfeel gara-gara chat lu nggak beradab. 🤢",
+    "Sange = auto batal pahala puasa jalur VIP. 🔥",
+    "Sange itu penyakit, obatnya cuma tobat nasuha. 💊",
+    "Puasa itu latihan jadi orang sabar, bukan latihan jadi orang sange. 🧘",
+    "Puasa woi, tahan nafsunya jangan sange. 🌙",
+    "Sange di bulan puasa? Malu sama anak TPA sebelah. 👶",
+    "Otak lu lagi puasa juga kan? Jangan disuapin hal haram. 🧠",
+    "Kalau niat ngomong jorok, mending tutup app terus tadarus. 📖",
+    "Jangan norak, lagi bulan puasa jangan bahas yang porno. 🚫",
+    "Jangan mesum, ini bulan Ramadan bukan bulan bejat. 🌴",
+
+    # Roasting halus
+    "Ramadan kareem, bukan Ramadan maksiat. Bedain dong. 🌴",
+    "Chat ini gratis, tapi dosa tetap ada harganya. 😇",
+    "Kalau mau maksiat, tutup app ini dulu. Makasih. 🙏",
+    "Inget, yang kamu ketik itu amal. Pilih yang berpahala. ⌨️",
+    "Jangan spam, malaikat juga capek nyatatnya. 😮‍💨",
+    "Niat chat buat apa? Kalau bukan yang baik, mending tidur aja. 😴",
+    "Di bulan penuh berkah ini, yuk jadi manusia yang nggak nyebelin. 🤲",
+    "Partner kamu juga lagi puasa. Jangan malah bikin buka puasa lebih awal karena emosi. 😤",
+
+    # Wholesome
+    "Siapa tau partner ini yang bakal ingetin kamu buat sahur. 🍽️",
+    "Ngobrol yang baik, siapa tau jadi amal jariyah. 💫",
+    "Yuk jadiin Ramadan ini lebih bermakna, mulai dari obrolan yang positif. 🌙",
+    "Kalau bisa bikin partner senyum, itu udah sedekah namanya. 😊",
+    "Satu chat baik di bulan Ramadan nilainya berlipat ganda. Manfaatin dong. 📈",
+    "Jaga lisan (dan jari) ya, baik di dunia nyata maupun di sini. 🤍",
+]
 
 CARI_PARTNER = ReplyKeyboardMarkup(
     [["🚀 Cari partner"], ["📊 Stats"]],
@@ -438,9 +484,10 @@ async def _do_find(user_id: int, context, gender_pref: str | None = None):
             db_add_chat(user_id, partner)
 
     if partner:
+        tip = random.choice(MATCHED_MESSAGES)
         msg = (
-            "✅ <b>Ketemu!</b> Sekarang kamu lagi chat sama orang asing.\n\n"
-            "<code>https://t.me/anonyneo_bot</code>"
+            "✅ <b>Partner ketemu!</b> Nikmati obrolan kalian.\n\n"
+            f"<i>{tip}</i>"
         )
         await context.bot.send_message(chat_id=user_id,  text=msg, parse_mode="HTML", reply_markup=btn_chat())
         await context.bot.send_message(chat_id=partner,  text=msg, parse_mode="HTML", reply_markup=btn_chat())
@@ -1221,7 +1268,7 @@ async def notify_online(app):
 def main():
     init_db()
 
-    app = ApplicationBuilder().token(TOKEN).post_init(notify_online).build()
+    app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
