@@ -486,7 +486,7 @@ async def _do_find(user_id: int, context, gender_pref: str | None = None):
     if partner:
         tip = random.choice(MATCHED_MESSAGES)
         msg = (
-            "✅ <b>Partner ketemu!</b> Nikmati obrolan kalian.\n\n"
+            "✅ <b>Partner ketemu! Nikmati obrolan kalian.</b>\n\n"
             f"<i>{tip}</i>"
         )
         await context.bot.send_message(chat_id=user_id,  text=msg, parse_mode="HTML", reply_markup=btn_chat())
@@ -669,7 +669,7 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await context.bot.send_message(
                     chat_id=user_id,
-                    text=f"📢 <b>Pengumuman</b>\n\n{pesan}\n\n— owner",
+                    text=f"📢 <b>Pengumuman</b>\n\n{pesan}\n\n— <b><i>owner</i></b>",
                     parse_mode="HTML"
                 )
                 success += 1
