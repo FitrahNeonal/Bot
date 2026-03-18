@@ -564,15 +564,33 @@ async def _do_stop(user_id: int, context):
     db_remove_chat(user_id, partner)
     await context.bot.send_message(
         chat_id=user_id,
-        text="👋 <i>Chat selesai. Makasih udah mampir!</i>",
-        parse_mode="HTML",
+        text="👋 <i>Chat selesai.</i>",
+        parse_mode="HTML"
+    )
+    await context.bot.send_message(
+        chat_id=user_id,
+        text="Makasih udah mampir! Semoga obrolannya berkesan. 🌙",
         reply_markup=btn_after_stop(partner)
+    )
+    await context.bot.send_message(
+        chat_id=user_id,
+        text="🚀 Mau cari lagi?",
+        reply_markup=CARI_PARTNER
     )
     await context.bot.send_message(
         chat_id=partner,
         text="💨 <i>Partner kamu udah cabut.</i>",
-        parse_mode="HTML",
+        parse_mode="HTML"
+    )
+    await context.bot.send_message(
+        chat_id=partner,
+        text="Semoga obrolannya berkesan ya! 🌙",
         reply_markup=btn_after_stop(user_id)
+    )
+    await context.bot.send_message(
+        chat_id=partner,
+        text="🚀 Mau cari lagi?",
+        reply_markup=CARI_PARTNER
     )
 
 # ─── Handlers ────────────────────────────────────────────────────────────────
