@@ -77,6 +77,13 @@ def btn_find_again():
         InlineKeyboardButton("🔍 Cari partner baru", callback_data="find_again")
     ]])
 
+def btn_gender_pref():
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("👨 Cowok", callback_data="findgender_cowok"),
+        InlineKeyboardButton("👩 Cewek", callback_data="findgender_cewek"),
+        InlineKeyboardButton("🎲 Random", callback_data="findgender_random"),
+    ]])
+
 def btn_after_stop(partner_id: int):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔄 Hubungkan lagi", callback_data=f"reconnect_{partner_id}")],
@@ -186,8 +193,11 @@ def init_db():
     ]:
         execute_turso(sql)
 
-def db_add_waiting(user_id: int):
-    execute_turso("INSERT OR IGNORE INTO waiting_users VALUES (?, ?)", [user_id, time.time()])
+def db_add_waiting(user_id: int, gender_pref: str | None = None):
+    execute_turso(
+        "INSERT OR IGNORE INTO waiting_users VALUES (?, ?, ?)",
+        [user_id, time.time(), gender_pref]
+    )
 
 def db_remove_waiting(user_id: int):
     execute_turso("DELETE FROM waiting_users WHERE user_id = ?", [user_id])
@@ -195,15 +205,34 @@ def db_remove_waiting(user_id: int):
 def db_is_waiting(user_id: int) -> bool:
     return len(execute_turso("SELECT 1 FROM waiting_users WHERE user_id = ?", [user_id])) > 0
 
-def db_pop_any_waiting(exclude: int) -> int | None:
-    rows = execute_turso(
-        "SELECT user_id FROM waiting_users WHERE user_id != ? ORDER BY joined_at LIMIT 1", [exclude]
-    )
+def db_pop_any_waiting(exclude: int, gender_pref: str | None = None) -> int | None:
+    """Ambil user dari waiting list. Kalau gender_pref diisi, filter by gender."""
+    if gender_pref and gender_pref != "random":
+        # Cari yang gender-nya sesuai preferensi
+        rows = execute_turso("""
+            SELECT w.user_id FROM waiting_users w
+            JOIN users u ON w.user_id = u.user_id
+            WHERE w.user_id != ? AND u.gender = ?
+            ORDER BY w.joined_at LIMIT 1
+        """, [exclude, gender_pref])
+    else:
+        rows = execute_turso(
+            "SELECT user_id FROM waiting_users WHERE user_id != ? ORDER BY joined_at LIMIT 1",
+            [exclude]
+        )
     if rows:
         partner = int(rows[0][0])
         execute_turso("DELETE FROM waiting_users WHERE user_id = ?", [partner])
         return partner
     return None
+
+def db_get_waiting_since(user_id: int) -> float | None:
+    rows = execute_turso("SELECT joined_at FROM waiting_users WHERE user_id = ?", [user_id])
+    return float(rows[0][0]) if rows else None
+
+def db_get_gender_pref(user_id: int) -> str | None:
+    rows = execute_turso("SELECT gender_pref FROM waiting_users WHERE user_id = ?", [user_id])
+    return rows[0][0] if rows else None
 
 def db_add_chat(user_id: int, partner_id: int):
     now = time.time()
@@ -363,7 +392,7 @@ async def _force_disconnect(user_id: int, partner_id: int, context):
     except TelegramError:
         pass
 
-async def _do_find(user_id: int, context):
+async def _do_find(user_id: int, context, gender_pref: str | None = None):
     if db_is_banned(user_id):
         await context.bot.send_message(
             chat_id=user_id,
@@ -399,7 +428,7 @@ async def _do_find(user_id: int, context):
         return
 
     async with match_lock:
-        partner = db_pop_any_waiting(exclude=user_id)
+        partner = db_pop_any_waiting(exclude=user_id, gender_pref=gender_pref)
         if partner:
             db_add_chat(user_id, partner)
 
@@ -412,15 +441,48 @@ async def _do_find(user_id: int, context):
         await context.bot.send_message(chat_id=partner,  text=msg, parse_mode="HTML", reply_markup=btn_chat())
         logger.info("Matched: %s <-> %s", user_id, partner)
     else:
-        db_add_waiting(user_id)
+        db_add_waiting(user_id, gender_pref)
         s = db_get_stats()
         online = s["chatting"] * 2 + s["waiting"]
+        pref_text = f" (nyari: {gender_pref})" if gender_pref and gender_pref != "random" else ""
         await context.bot.send_message(
             chat_id=user_id,
-            text=f"🔎 <i>Lagi nyariin partner buat kamu...</i>\nAda <b>{online}</b> orang online sekarang.",
+            text=f"🔎 <i>Lagi nyariin partner buat kamu{pref_text}...</i>\nAda <b>{online}</b> orang online sekarang.",
             parse_mode="HTML",
             reply_markup=btn_waiting()
         )
+        # Schedule fallback ke random setelah 2 menit
+        if gender_pref and gender_pref != "random":
+            context.application.job_queue.run_once(
+                _fallback_to_random,
+                when=120,
+                data={"user_id": user_id, "original_pref": gender_pref},
+                name=f"fallback_{user_id}"
+            )
+
+async def _fallback_to_random(context):
+    """Dipanggil setelah 2 menit kalau belum dapat partner dengan gender preference."""
+    data    = context.job.data
+    user_id = data["user_id"]
+
+    # Cek apakah masih waiting dan belum dapat partner
+    if not db_is_waiting(user_id):
+        return
+
+    # Cek apakah masih punya preferensi yang sama
+    current_pref = db_get_gender_pref(user_id)
+    if current_pref != data["original_pref"]:
+        return
+
+    # Hapus dari waiting dan cari ulang tanpa filter
+    db_remove_waiting(user_id)
+    await context.bot.send_message(
+        chat_id=user_id,
+        text="⏰ <i>Gak ada yang cocok nih. Nyambungin ke random aja ya!</i>",
+        parse_mode="HTML"
+    )
+    await _do_find(user_id, context, gender_pref=None)
+
 
 async def _do_skip(user_id: int, context):
     partner = db_get_partner(user_id)
@@ -504,6 +566,41 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def find(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _do_find(update.effective_user.id, context)
+
+
+async def findgender(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    if db_get_partner(user_id):
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="⚠️ <i>Kamu masih nyambung sama partner sekarang.</i>",
+            parse_mode="HTML"
+        )
+        return
+
+    if db_is_waiting(user_id):
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="🔎 <i>Masih nyari nih, tunggu bentar...</i>",
+            parse_mode="HTML"
+        )
+        return
+
+    if not db_has_gender(user_id):
+        context.user_data["after_gender"] = "findgender"
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="👤 Sebelum mulai, kamu itu?",
+            reply_markup=btn_gender()
+        )
+        return
+
+    await context.bot.send_message(
+        chat_id=user_id,
+        text="🔍 Mau chat sama siapa?",
+        reply_markup=btn_gender_pref()
+    )
 
 
 async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -634,6 +731,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "find_again":
         await _do_find(user_id, context)
+        return
+
+    if data.startswith("findgender_"):
+        pref = data.split("findgender_")[1]  # cowok, cewek, atau random
+        await _do_find(user_id, context, gender_pref=pref)
         return
 
     if data == "skip":
@@ -1123,6 +1225,7 @@ def main():
     app.add_handler(CommandHandler("invite", invite))
     app.add_handler(CommandHandler("profile", profile))
     app.add_handler(CommandHandler("find", find))
+    app.add_handler(CommandHandler("findgender", findgender))
     app.add_handler(CommandHandler("next", skip))
     app.add_handler(CommandHandler("stop", stop))
     app.add_handler(CommandHandler("admin", admin))
