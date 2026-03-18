@@ -84,6 +84,38 @@ def btn_after_stop(partner_id: int):
         [InlineKeyboardButton("📝 Beri Feedback", url="https://feedbackneo.vercel.app")]
     ])
 
+def btn_gender():
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("👨 Cowok", callback_data="set_gender_cowok"),
+        InlineKeyboardButton("👩 Cewek", callback_data="set_gender_cewek"),
+        InlineKeyboardButton("🙈 Rahasia", callback_data="set_gender_rahasia"),
+    ]])
+
+def btn_kota():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Jakarta", callback_data="set_kota_Jakarta"),
+         InlineKeyboardButton("Surabaya", callback_data="set_kota_Surabaya"),
+         InlineKeyboardButton("Bandung", callback_data="set_kota_Bandung")],
+        [InlineKeyboardButton("Medan", callback_data="set_kota_Medan"),
+         InlineKeyboardButton("Makassar", callback_data="set_kota_Makassar"),
+         InlineKeyboardButton("Semarang", callback_data="set_kota_Semarang")],
+        [InlineKeyboardButton("Palembang", callback_data="set_kota_Palembang"),
+         InlineKeyboardButton("Tangerang", callback_data="set_kota_Tangerang"),
+         InlineKeyboardButton("Depok", callback_data="set_kota_Depok")],
+        [InlineKeyboardButton("Bekasi", callback_data="set_kota_Bekasi"),
+         InlineKeyboardButton("Yogyakarta", callback_data="set_kota_Yogyakarta"),
+         InlineKeyboardButton("Malang", callback_data="set_kota_Malang")],
+        [InlineKeyboardButton("🗺️ Lainnya", callback_data="set_kota_lainnya"),
+         InlineKeyboardButton("⏭ Lewati", callback_data="skip_kota")],
+    ])
+
+def btn_profile_edit():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✏️ Edit Gender", callback_data="edit_gender"),
+         InlineKeyboardButton("✏️ Edit Kota", callback_data="edit_kota")],
+        [InlineKeyboardButton("✏️ Edit Umur", callback_data="edit_umur")],
+    ])
+
 # ─── Database ────────────────────────────────────────────────────────────────
 def execute_turso(sql: str, params: list = None) -> list:
     import urllib.request, json as _json
@@ -212,6 +244,31 @@ def db_get_referral_count(user_id: int) -> int:
     rows = execute_turso("SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", [user_id])
     return int(rows[0][0] or 0)
 
+def db_get_profile(user_id: int) -> dict | None:
+    rows = execute_turso(
+        "SELECT gender, kota, umur FROM users WHERE user_id = ?", [user_id]
+    )
+    if not rows:
+        return None
+    return {
+        "gender": rows[0][0],
+        "kota":   rows[0][1],
+        "umur":   rows[0][2],
+    }
+
+def db_set_gender(user_id: int, gender: str):
+    execute_turso("UPDATE users SET gender = ? WHERE user_id = ?", [gender, user_id])
+
+def db_set_kota(user_id: int, kota: str):
+    execute_turso("UPDATE users SET kota = ? WHERE user_id = ?", [kota, user_id])
+
+def db_set_umur(user_id: int, umur: int):
+    execute_turso("UPDATE users SET umur = ? WHERE user_id = ?", [umur, user_id])
+
+def db_has_gender(user_id: int) -> bool:
+    rows = execute_turso("SELECT gender FROM users WHERE user_id = ?", [user_id])
+    return bool(rows and rows[0][0] is not None)
+
 def db_is_banned(user_id: int) -> bool:
     rows = execute_turso("SELECT banned FROM users WHERE user_id = ?", [user_id])
     return bool(rows and int(rows[0][0] or 0) == 1)
@@ -297,6 +354,16 @@ async def _do_find(user_id: int, context):
             chat_id=user_id,
             text="🚫 <i>Akun kamu kena ban karena laporan dari pengguna lain.</i>",
             parse_mode="HTML"
+        )
+        return
+
+    # Cek gender dulu — wajib sebelum find
+    if not db_has_gender(user_id):
+        context.user_data["after_gender"] = "find"
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="👤 Sebelum mulai, kamu itu?",
+            reply_markup=btn_gender()
         )
         return
 
@@ -410,7 +477,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text=(
             "👤 <b>Anonymous Chat</b>\n"
             "Chat sama orang random, tanpa ketahuan siapa kamu.\n\n"
-            "Tekan tombol /find buat mulai cari partner.\n"
+            "Tekan tombol di bawah buat mulai.\n"
             "/help kalau butuh panduan.\n\n"
             f"👥 Udah <b>{db_get_stats()['total']}</b> orang yang pernah mampir.\n\n"
             "💬 Ada saran? → https://feedbackneo.vercel.app"
@@ -448,6 +515,45 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=ADMIN_ID,
             text=f"✅ Broadcast selesai — {success}/{len(rows)} user berhasil."
         )
+        return
+
+    user_id = update.effective_user.id
+
+    # Cek waiting kota lainnya
+    if context.user_data.get("waiting_kota"):
+        context.user_data["waiting_kota"] = False
+        kota = update.message.text.strip()
+        db_set_kota(user_id, kota)
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=f"✅ Kota disimpan: <b>{kota}</b>\n\nUmur kamu? Ketik angkanya. (opsional, ketik /skip buat lewati)",
+            parse_mode="HTML"
+        )
+        context.user_data["waiting_umur"] = True
+        return
+
+    # Cek waiting umur
+    if context.user_data.get("waiting_umur"):
+        context.user_data["waiting_umur"] = False
+        try:
+            umur = int(update.message.text.strip())
+            db_set_umur(user_id, umur)
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=f"✅ Umur disimpan: <b>{umur}</b>\n\nProfil kamu sudah lengkap! 🎉",
+                parse_mode="HTML"
+            )
+        except ValueError:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="⚠️ Masukkan angka yang valid ya.",
+            )
+            context.user_data["waiting_umur"] = True
+            return
+        # Kalau habis dari onboarding, langsung find
+        if context.user_data.get("after_onboarding") == "find":
+            context.user_data["after_onboarding"] = None
+            await _do_find(user_id, context)
         return
 
     if update.message.text == "🚀 Cari partner":
@@ -733,8 +839,79 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
         return
 
+    # ── Profile ───────────────────────────────────────────────────
+    if data.startswith("set_gender_"):
+        gender = data.split("set_gender_")[1]
+        db_set_gender(user_id, gender)
+        after = context.user_data.get("after_gender")
+        context.user_data["after_gender"] = None
 
-async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if after == "find":
+            context.user_data["after_onboarding"] = "find"
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=f"✅ Gender disimpan: <b>{gender}</b>\n\nKamu dari kota mana? (opsional)",
+                parse_mode="HTML",
+                reply_markup=btn_kota()
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=f"✅ Gender diupdate: <b>{gender}</b>",
+                parse_mode="HTML"
+            )
+        return
+
+    if data.startswith("set_kota_"):
+        kota = data.split("set_kota_")[1]
+        if kota == "lainnya":
+            context.user_data["waiting_kota"] = True
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="📍 Ketik nama kotamu:",
+            )
+        else:
+            db_set_kota(user_id, kota)
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=f"✅ Kota disimpan: <b>{kota}</b>\n\nTerakhir, umur kamu? Ketik angkanya. (opsional, ketik /skip buat lewati)",
+                parse_mode="HTML"
+            )
+            context.user_data["waiting_umur"] = True
+        return
+
+    if data == "skip_kota":
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="Oke dilewati!\n\nUmur kamu? Ketik angkanya. (opsional, ketik /skip buat lewati)",
+        )
+        context.user_data["waiting_umur"] = True
+        return
+
+    if data in ("edit_gender",):
+        context.user_data["after_gender"] = "profile"
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="👤 Pilih gender kamu:",
+            reply_markup=btn_gender()
+        )
+        return
+
+    if data == "edit_kota":
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="📍 Pilih kota kamu:",
+            reply_markup=btn_kota()
+        )
+        return
+
+    if data == "edit_umur":
+        context.user_data["waiting_umur"] = True
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="🎂 Ketik umur kamu:"
+        )
+        return
     s = db_get_stats()
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -782,7 +959,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Berlaku 6 jam, dan harus disetujui kedua pihak.\n\n"
             "<b>5. Ajak teman</b>\n"
             "/invite — dapat link untuk ajak temenmu.\n\n"
-            "<b>6. Statistik</b>\n"
+            "<b>6. Profil</b>\n"
+            "/profile — lihat dan edit profil kamu.\n\n"
+            "<b>7. Statistik</b>\n"
             "/stats — lihat berapa orang yang lagi online.\n\n"
             "⚠️ <b>Jangan</b> spam, NSFW, atau nyebarin info pribadi orang.\n\n"
             "Ada masukan? Feedback kamu sangat berarti."
@@ -821,6 +1000,15 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         total_refs    = int(execute_turso("SELECT COUNT(*) FROM referrals")[0][0] or 0)
         total_reports = int(execute_turso("SELECT COUNT(*) FROM reports")[0][0] or 0)
         total_banned  = int(execute_turso("SELECT COUNT(*) FROM users WHERE banned = 1")[0][0] or 0)
+
+        # Gender stats
+        gender_rows = execute_turso("SELECT gender, COUNT(*) FROM users WHERE gender IS NOT NULL GROUP BY gender")
+        gender_text = "\n".join([f"  {r[0]}: {r[1]}" for r in gender_rows]) or "  belum ada data"
+
+        # Top kota
+        kota_rows = execute_turso("SELECT kota, COUNT(*) as c FROM users WHERE kota IS NOT NULL GROUP BY kota ORDER BY c DESC LIMIT 5")
+        kota_text = "\n".join([f"  {r[0]}: {r[1]}" for r in kota_rows]) or "  belum ada data"
+
         await context.bot.send_message(
             chat_id=ADMIN_ID,
             text=(
@@ -830,7 +1018,9 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🔎 Lagi waiting: <b>{s['waiting']}</b> orang\n"
                 f"🔗 Total referral: <b>{total_refs}</b>\n"
                 f"🚩 Total report: <b>{total_reports}</b>\n"
-                f"🚫 Total banned: <b>{total_banned}</b>"
+                f"🚫 Total banned: <b>{total_banned}</b>\n\n"
+                f"⚧ <b>Gender:</b>\n{gender_text}\n\n"
+                f"🗺️ <b>Top kota:</b>\n{kota_text}"
             ),
             parse_mode="HTML"
         )
@@ -867,6 +1057,44 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    p = db_get_profile(user_id)
+    if not p:
+        await context.bot.send_message(chat_id=user_id, text="⚠️ <i>Data kamu tidak ditemukan.</i>", parse_mode="HTML")
+        return
+
+    gender = p["gender"] or "—"
+    kota   = p["kota"]   or "—"
+    umur   = p["umur"]   or "—"
+
+    await context.bot.send_message(
+        chat_id=user_id,
+        text=(
+            "👤 <b>Profil kamu</b>\n\n"
+            f"⚧ Gender: <b>{gender}</b>\n"
+            f"📍 Kota: <b>{kota}</b>\n"
+            f"🎂 Umur: <b>{umur}</b>"
+        ),
+        parse_mode="HTML",
+        reply_markup=btn_profile_edit()
+    )
+
+
+async def skip_umur(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Lewati pengisian umur saat onboarding."""
+    if not context.user_data.get("waiting_umur"):
+        return
+    context.user_data["waiting_umur"] = False
+    await context.bot.send_message(
+        chat_id=update.effective_user.id,
+        text="Oke dilewati! Profil kamu sudah disimpan. 🎉"
+    )
+    if context.user_data.get("after_onboarding") == "find":
+        context.user_data["after_onboarding"] = None
+        await _do_find(update.effective_user.id, context)
+
+
 async def notify_online(app):
     rows = execute_turso("SELECT DISTINCT user_id FROM active_chats")
     for (user_id,) in rows:
@@ -890,6 +1118,7 @@ def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("invite", invite))
+    app.add_handler(CommandHandler("profile", profile))
     app.add_handler(CommandHandler("find", find))
     app.add_handler(CommandHandler("skip", skip))
     app.add_handler(CommandHandler("stop", stop))
