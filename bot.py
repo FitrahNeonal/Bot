@@ -489,6 +489,8 @@ async def _do_find(user_id: int, context, gender_pref: str | None = None):
             "✅ <b>Partner ketemu! Nikmati obrolan kalian.</b>\n\n"
             f"<i>{tip}</i>"
         )
+        # Hapus ReplyKeyboard untuk user_id (dia langsung matched, belum lewat waiting)
+        await context.bot.send_message(chat_id=user_id, text="🔗 Nyambung!", reply_markup=ReplyKeyboardRemove())
         await context.bot.send_message(chat_id=user_id, text=msg, parse_mode="HTML", reply_markup=btn_chat())
         await context.bot.send_message(chat_id=partner, text=msg, parse_mode="HTML", reply_markup=btn_chat())
         logger.info("Matched: %s <-> %s", user_id, partner)
