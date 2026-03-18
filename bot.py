@@ -109,12 +109,27 @@ def btn_kota():
          InlineKeyboardButton("⏭ Lewati", callback_data="skip_kota")],
     ])
 
+def btn_umur():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("< 17", callback_data="set_umur_<17"),
+         InlineKeyboardButton("17-20", callback_data="set_umur_17-20"),
+         InlineKeyboardButton("21-24", callback_data="set_umur_21-24")],
+        [InlineKeyboardButton("25-29", callback_data="set_umur_25-29"),
+         InlineKeyboardButton("30+", callback_data="set_umur_30+")],
+        [InlineKeyboardButton("⏭ Lewati", callback_data="skip_umur")],
+    ])
+
 def btn_profile_edit():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("✏️ Edit Gender", callback_data="edit_gender"),
          InlineKeyboardButton("✏️ Edit Kota", callback_data="edit_kota")],
         [InlineKeyboardButton("✏️ Edit Umur", callback_data="edit_umur")],
     ])
+
+def btn_skip_umur():
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("⏭ Lewati", callback_data="skip_umur")
+    ]])
 
 # ─── Database ────────────────────────────────────────────────────────────────
 def execute_turso(sql: str, params: list = None) -> list:
@@ -262,7 +277,7 @@ def db_set_gender(user_id: int, gender: str):
 def db_set_kota(user_id: int, kota: str):
     execute_turso("UPDATE users SET kota = ? WHERE user_id = ?", [kota, user_id])
 
-def db_set_umur(user_id: int, umur: int):
+def db_set_umur(user_id: int, umur: str):
     execute_turso("UPDATE users SET umur = ? WHERE user_id = ?", [umur, user_id])
 
 def db_has_gender(user_id: int) -> bool:
@@ -370,7 +385,7 @@ async def _do_find(user_id: int, context):
     if db_get_partner(user_id):
         await context.bot.send_message(
             chat_id=user_id,
-            text="⚠️ <i>Kamu masih nyambung sama partner sekarang.</i>\nPakai Skip kalau mau ganti.",
+            text="⚠️ <i>Kamu masih nyambung sama partner sekarang.</i>\nPakai /next kalau mau ganti.",
             parse_mode="HTML"
         )
         return
@@ -526,34 +541,10 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db_set_kota(user_id, kota)
         await context.bot.send_message(
             chat_id=user_id,
-            text=f"✅ Kota disimpan: <b>{kota}</b>\n\nUmur kamu? Ketik angkanya. (opsional, ketik /skip buat lewati)",
-            parse_mode="HTML"
+            text=f"✅ Kota disimpan: <b>{kota}</b>\n\nUmur kamu? (opsional)",
+            parse_mode="HTML",
+            reply_markup=btn_umur()
         )
-        context.user_data["waiting_umur"] = True
-        return
-
-    # Cek waiting umur
-    if context.user_data.get("waiting_umur"):
-        context.user_data["waiting_umur"] = False
-        try:
-            umur = int(update.message.text.strip())
-            db_set_umur(user_id, umur)
-            await context.bot.send_message(
-                chat_id=user_id,
-                text=f"✅ Umur disimpan: <b>{umur}</b>\n\nProfil kamu sudah lengkap! 🎉",
-                parse_mode="HTML"
-            )
-        except ValueError:
-            await context.bot.send_message(
-                chat_id=user_id,
-                text="⚠️ Masukkan angka yang valid ya.",
-            )
-            context.user_data["waiting_umur"] = True
-            return
-        # Kalau habis dari onboarding, langsung find
-        if context.user_data.get("after_onboarding") == "find":
-            context.user_data["after_onboarding"] = None
-            await _do_find(user_id, context)
         return
 
     if update.message.text == "🚀 Cari partner":
@@ -874,18 +865,41 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             db_set_kota(user_id, kota)
             await context.bot.send_message(
                 chat_id=user_id,
-                text=f"✅ Kota disimpan: <b>{kota}</b>\n\nTerakhir, umur kamu? Ketik angkanya. (opsional, ketik /skip buat lewati)",
-                parse_mode="HTML"
+                text=f"✅ Kota disimpan: <b>{kota}</b>\n\nUmur kamu? (opsional)",
+                parse_mode="HTML",
+                reply_markup=btn_umur()
             )
-            context.user_data["waiting_umur"] = True
         return
 
     if data == "skip_kota":
         await context.bot.send_message(
             chat_id=user_id,
-            text="Oke dilewati!\n\nUmur kamu? Ketik angkanya. (opsional, ketik /skip buat lewati)",
+            text="Oke dilewati!\n\nUmur kamu? (opsional)",
+            reply_markup=btn_umur()
         )
-        context.user_data["waiting_umur"] = True
+        return
+
+    if data.startswith("set_umur_"):
+        umur = data.split("set_umur_")[1]
+        db_set_umur(user_id, umur)
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=f"✅ Umur disimpan: <b>{umur}</b>\n\nProfil kamu sudah lengkap! 🎉",
+            parse_mode="HTML"
+        )
+        if context.user_data.get("after_onboarding") == "find":
+            context.user_data["after_onboarding"] = None
+            await _do_find(user_id, context)
+        return
+
+    if data == "skip_umur":
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="Oke dilewati! Profil kamu sudah disimpan. 🎉"
+        )
+        if context.user_data.get("after_onboarding") == "find":
+            context.user_data["after_onboarding"] = None
+            await _do_find(user_id, context)
         return
 
     if data in ("edit_gender",):
@@ -906,24 +920,12 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "edit_umur":
-        context.user_data["waiting_umur"] = True
         await context.bot.send_message(
             chat_id=user_id,
-            text="🎂 Ketik umur kamu:"
+            text="🎂 Umur kamu? (opsional)",
+            reply_markup=btn_umur()
         )
         return
-    s = db_get_stats()
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=(
-            "📊 <b>Status Bot</b>\n\n"
-            f"💬 Lagi chat: <b>{s['chatting']}</b> pasang\n"
-            f"🔎 Lagi nyari: <b>{s['waiting']}</b> orang\n"
-            f"👥 Total pengguna: <b>{s['total']}</b> orang\n\n"
-            "<i>Makin rame makin seru — ajak temenmu!</i>"
-        ),
-        parse_mode="HTML"
-    )
 
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -968,7 +970,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Begitu partner ketemu, langsung kirim pesan aja.\n"
             "Identitas kamu tetap anonim.\n\n"
             "<b>3. Ganti / stop / report</b>\n"
-            "Gunakan tombol <b>⏭ Skip</b>, <b>🛑 Stop</b>, atau <b>🚩 Report</b> di bawah pesan.\n\n"
+            "Gunakan tombol <b>⏭ Skip</b> atau /next, <b>🛑 Stop</b>, atau <b>🚩 Report</b> di bawah pesan.\n\n"
             "<b>4. Hubungkan lagi</b>\n"
             "Setelah chat selesai, ada tombol <b>🔄 Hubungkan lagi</b> kalau mau balik ke partner yang sama.\n"
             "Berlaku 6 jam, dan harus disetujui kedua pihak.\n\n"
@@ -1096,20 +1098,6 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def skip_umur(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Lewati pengisian umur saat onboarding."""
-    if not context.user_data.get("waiting_umur"):
-        return
-    context.user_data["waiting_umur"] = False
-    await context.bot.send_message(
-        chat_id=update.effective_user.id,
-        text="Oke dilewati! Profil kamu sudah disimpan. 🎉"
-    )
-    if context.user_data.get("after_onboarding") == "find":
-        context.user_data["after_onboarding"] = None
-        await _do_find(update.effective_user.id, context)
-
-
 async def notify_online(app):
     rows = execute_turso("SELECT DISTINCT user_id FROM active_chats")
     for (user_id,) in rows:
@@ -1135,7 +1123,7 @@ def main():
     app.add_handler(CommandHandler("invite", invite))
     app.add_handler(CommandHandler("profile", profile))
     app.add_handler(CommandHandler("find", find))
-    app.add_handler(CommandHandler("skip", skip))
+    app.add_handler(CommandHandler("next", skip))
     app.add_handler(CommandHandler("stop", stop))
     app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CallbackQueryHandler(callback_handler))
