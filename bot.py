@@ -926,6 +926,21 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    s = db_get_stats()
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=(
+            "📊 <b>Status Bot</b>\n\n"
+            f"💬 Lagi chat: <b>{s['chatting']}</b> pasang\n"
+            f"🔎 Lagi nyari: <b>{s['waiting']}</b> orang\n"
+            f"👥 Total pengguna: <b>{s['total']}</b> orang\n\n"
+            "<i>Makin rame makin seru — ajak temenmu!</i>"
+        ),
+        parse_mode="HTML"
+    )
+
+
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id   = update.effective_user.id
     ref_count = db_get_referral_count(user_id)
