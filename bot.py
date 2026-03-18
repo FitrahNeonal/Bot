@@ -439,11 +439,6 @@ async def _force_disconnect(user_id: int, partner_id: int, context):
             parse_mode="HTML",
             reply_markup=btn_find_again()
         )
-        await context.bot.send_message(
-            chat_id=user_id,
-            text="🚀 Mau cari partner lagi?",
-            reply_markup=CARI_PARTNER
-        )
     except TelegramError:
         pass
 
@@ -494,10 +489,7 @@ async def _do_find(user_id: int, context, gender_pref: str | None = None):
             "✅ <b>Partner ketemu! Nikmati obrolan kalian.</b>\n\n"
             f"<i>{tip}</i>"
         )
-        # Sembunyikan ReplyKeyboard dulu (pesan invisible)
-        await context.bot.send_message(chat_id=user_id, text="​", reply_markup=ReplyKeyboardRemove())
         await context.bot.send_message(chat_id=user_id, text=msg, parse_mode="HTML", reply_markup=btn_chat())
-        await context.bot.send_message(chat_id=partner, text="​", reply_markup=ReplyKeyboardRemove())
         await context.bot.send_message(chat_id=partner, text=msg, parse_mode="HTML", reply_markup=btn_chat())
         logger.info("Matched: %s <-> %s", user_id, partner)
     else:
@@ -577,20 +569,10 @@ async def _do_stop(user_id: int, context):
         reply_markup=btn_after_stop(partner)
     )
     await context.bot.send_message(
-        chat_id=user_id,
-        text="🚀 Mau cari partner lagi?",
-        reply_markup=CARI_PARTNER
-    )
-    await context.bot.send_message(
         chat_id=partner,
         text="💨 <i>Partner kamu udah cabut.</i>",
         parse_mode="HTML",
         reply_markup=btn_after_stop(user_id)
-    )
-    await context.bot.send_message(
-        chat_id=partner,
-        text="🚀 Mau cari partner lagi?",
-        reply_markup=CARI_PARTNER
     )
 
 # ─── Handlers ────────────────────────────────────────────────────────────────
@@ -798,8 +780,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(
                 chat_id=user_id,
                 text="🛑 <i>Pencarian dibatalkan. Santuy.</i>",
-                parse_mode="HTML",
-                reply_markup=CARI_PARTNER
+                parse_mode="HTML"
             )
         return
 
@@ -838,8 +819,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(
                 chat_id=user_id,
                 text="🛑 <i>Pencarian dibatalkan. Santuy.</i>",
-                parse_mode="HTML",
-                reply_markup=CARI_PARTNER
+                parse_mode="HTML"
             )
             return
         if not db_get_partner(user_id):
