@@ -46,7 +46,6 @@ def btn_chat():
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("⏭ Skip", callback_data="skip"),
         InlineKeyboardButton("🛑 Stop", callback_data="stop"),
-        InlineKeyboardButton("🚩 Report", callback_data="report"),
     ]])
 
 def btn_confirm_skip():
@@ -77,6 +76,13 @@ def btn_find_again():
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("🔍 Cari partner baru", callback_data="find_again")
     ]])
+
+def btn_after_stop(partner_id: int):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 Hubungkan lagi", callback_data=f"reconnect_{partner_id}")],
+        [InlineKeyboardButton("🚩 Report", callback_data=f"report_after_{partner_id}")],
+        [InlineKeyboardButton("📝 Beri Feedback", url="https://feedbackneo.vercel.app")]
+    ])
 
 # ─── Database ────────────────────────────────────────────────────────────────
 def execute_turso(sql: str, params: list = None) -> list:
@@ -364,13 +370,13 @@ async def _do_stop(user_id: int, context):
         chat_id=user_id,
         text="👋 <i>Chat selesai. Makasih udah mampir!</i>",
         parse_mode="HTML",
-        reply_markup=FEEDBACK_BUTTON
+        reply_markup=btn_after_stop(partner)
     )
     await context.bot.send_message(
         chat_id=partner,
         text="💨 <i>Partner kamu udah cabut.</i>\n\nBtw, ada feedback buat kami? Bebas banget.",
         parse_mode="HTML",
-        reply_markup=btn_reconnect(user_id)
+        reply_markup=btn_after_stop(user_id)
     )
 
 # ─── Handlers ────────────────────────────────────────────────────────────────
@@ -404,7 +410,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text=(
             "👤 <b>Anonymous Chat</b>\n"
             "Chat sama orang random, tanpa ketahuan siapa kamu.\n\n"
-            "Tekan tombol di bawah buat mulai.\n"
+            "Tekan tombol /find buat mulai cari partner.\n"
             "/help kalau butuh panduan.\n\n"
             f"👥 Udah <b>{db_get_stats()['total']}</b> orang yang pernah mampir.\n\n"
             "💬 Ada saran? → https://feedbackneo.vercel.app"
@@ -594,6 +600,50 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="🚩 Laporkan partner kamu karena?",
             reply_markup=btn_report_reason()
         )
+        return
+
+    # Report setelah chat selesai — partner_id disertakan di callback data
+    if data.startswith("report_after_"):
+        try:
+            reported_id = int(data.split("_")[2])
+        except (IndexError, ValueError):
+            return
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="🚩 Laporkan karena?",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("💬 Spam", callback_data=f"do_report_spam_{reported_id}"),
+                InlineKeyboardButton("🔞 Sange", callback_data=f"do_report_sange_{reported_id}"),
+                InlineKeyboardButton("❌ Batal", callback_data="cancel_action"),
+            ]])
+        )
+        return
+
+    if data.startswith("do_report_"):
+        parts = data.split("_")
+        try:
+            reason      = parts[2]  # spam atau sange
+            reported_id = int(parts[3])
+        except (IndexError, ValueError):
+            return
+        total_reports = db_add_report(user_id, reported_id, reason)
+        await context.bot.send_message(chat_id=user_id, text="✅ <i>Laporan dikirim. Terima kasih!</i>", parse_mode="HTML")
+        logger.info("Report after: %s melaporkan %s (%s) — total: %d", user_id, reported_id, reason, total_reports)
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=f"🚩 <b>Report baru</b>\nDari: <code>{user_id}</code>\nDilaporkan: <code>{reported_id}</code>\nAlasan: {reason}\nTotal report: {total_reports}",
+                parse_mode="HTML"
+            )
+        except TelegramError:
+            pass
+        if total_reports >= REPORT_LIMIT:
+            db_ban_user(reported_id)
+            await context.bot.send_message(chat_id=user_id, text="🚫 <i>User tersebut telah di-ban.</i>", parse_mode="HTML")
+            try:
+                await context.bot.send_message(chat_id=reported_id, text="🚫 <i>Akun kamu telah di-ban karena banyak laporan.</i>", parse_mode="HTML")
+            except TelegramError:
+                pass
         return
 
     if data in ("report_spam", "report_sange"):
