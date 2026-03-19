@@ -1542,7 +1542,10 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
         db_create_game(user_id, inviter, question_id)
 
         await query.answer("Game dimulai!")
-        await query.edit_message_reply_markup(reply_markup=None)
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
         await context.bot.send_message(chat_id=inviter, text="✅ <i>Partner setuju! Game dimulai...</i>", parse_mode="HTML")
         await _send_game_question(context.bot, user_id, inviter, 1, question_id)
         return
@@ -1552,7 +1555,10 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
         inviter = context.application.bot_data.get(f"game_invite_{user_id}")
         context.application.bot_data.pop(f"game_invite_{user_id}", None)
         await query.answer("Oke, gak jadi.")
-        await query.edit_message_reply_markup(reply_markup=None)
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
         if inviter:
             await context.bot.send_message(chat_id=inviter, text="😔 <i>Partner kamu gak mau main game.</i>", parse_mode="HTML")
         return
@@ -1573,7 +1579,10 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
             session_key = f"game_used_{min(user_id, game_data['partner_id'])}_{max(user_id, game_data['partner_id'])}"
             context.application.bot_data.pop(session_key, None)
             await query.answer("Game timeout!")
-            await query.edit_message_reply_markup(reply_markup=None)
+            try:
+                await query.edit_message_reply_markup(reply_markup=None)
+            except Exception:
+                pass
             await context.bot.send_message(chat_id=user_id, text="⏰ <i>Game selesai karena timeout.</i>", parse_mode="HTML")
             try:
                 await context.bot.send_message(chat_id=game_data["partner_id"], text="⏰ <i>Game selesai karena timeout.</i>", parse_mode="HTML")
@@ -1591,7 +1600,10 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
 
         db_set_game_answer(user_id, answer)
         await query.answer("✅ Jawaban tersimpan! Tunggu partner...")
-        await query.edit_message_reply_markup(reply_markup=None)
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
 
         # Cek partner dulu sebelum kirim notif (Bug 1 & 2 fix)
         partner_game = db_get_game(game_data["partner_id"])
@@ -1629,7 +1641,10 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
             return
         partner_id = game_data["partner_id"]
         await query.answer("Siap!")
-        await query.edit_message_reply_markup(reply_markup=None)
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
         context.application.bot_data[f"game_next_ready_{user_id}"] = True
         if context.application.bot_data.get(f"game_next_ready_{partner_id}"):
             context.application.bot_data.pop(f"game_next_ready_{user_id}", None)
@@ -1653,7 +1668,10 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
             await query.answer("Kamu sudah tidak punya partner.")
             return
         await query.answer("Siap!")
-        await query.edit_message_reply_markup(reply_markup=None)
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
         context.application.bot_data[f"game_replay_ready_{user_id}"] = True
         if context.application.bot_data.get(f"game_replay_ready_{partner}"):
             context.application.bot_data.pop(f"game_replay_ready_{user_id}", None)
@@ -1684,7 +1702,10 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
         context.application.bot_data.pop(f"game_replay_ready_{user_id}", None)
         context.application.bot_data.pop(f"game_next_ready_{user_id}", None)
         await query.answer("Game selesai!")
-        await query.edit_message_reply_markup(reply_markup=None)
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
         return
 
 
