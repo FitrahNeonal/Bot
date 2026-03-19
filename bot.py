@@ -223,7 +223,10 @@ def init_db():
             last_skip REAL DEFAULT 0,
             gender TEXT DEFAULT NULL,
             kota TEXT DEFAULT NULL,
-            umur TEXT DEFAULT NULL)""",
+            umur TEXT DEFAULT NULL,
+            total_chats INTEGER DEFAULT 0,
+            total_duration REAL DEFAULT 0,
+            longest_chat REAL DEFAULT 0)""",
         """CREATE TABLE IF NOT EXISTS referrals (
             referrer_id INTEGER NOT NULL,
             referred_id INTEGER NOT NULL,
@@ -329,7 +332,7 @@ def db_register_user(user_id: int, referred_by: int | None = None) -> bool:
     rows = execute_turso("SELECT 1 FROM users WHERE user_id = ?", [user_id])
     is_new = len(rows) == 0
     if is_new:
-        execute_turso("INSERT INTO users VALUES (?, ?, ?, 0, 0, 0, NULL, NULL, NULL)", [user_id, time.time(), referred_by])
+        execute_turso("INSERT INTO users VALUES (?, ?, ?, 0, 0, 0, NULL, NULL, NULL, 0, 0, 0)", [user_id, time.time(), referred_by])
         if referred_by:
             execute_turso("INSERT OR IGNORE INTO referrals VALUES (?, ?, ?)", [referred_by, user_id, time.time()])
     return is_new
@@ -340,15 +343,28 @@ def db_get_referral_count(user_id: int) -> int:
 
 def db_get_profile(user_id: int) -> dict | None:
     rows = execute_turso(
-        "SELECT gender, kota, umur FROM users WHERE user_id = ?", [user_id]
+        "SELECT gender, kota, umur, first_seen, total_chats, total_duration, longest_chat FROM users WHERE user_id = ?", [user_id]
     )
     if not rows:
         return None
     return {
-        "gender": rows[0][0],
-        "kota":   rows[0][1],
-        "umur":   rows[0][2],
+        "gender":        rows[0][0],
+        "kota":          rows[0][1],
+        "umur":          rows[0][2],
+        "first_seen":    float(rows[0][3]) if rows[0][3] else None,
+        "total_chats":   int(rows[0][4] or 0),
+        "total_duration": float(rows[0][5] or 0),
+        "longest_chat":  float(rows[0][6] or 0),
     }
+
+def db_update_stats(user_id: int, duration: float):
+    execute_turso("""
+        UPDATE users SET
+            total_chats = total_chats + 1,
+            total_duration = total_duration + ?,
+            longest_chat = MAX(longest_chat, ?)
+        WHERE user_id = ?
+    """, [duration, duration, user_id])
 
 def db_set_gender(user_id: int, gender: str):
     execute_turso("UPDATE users SET gender = ? WHERE user_id = ?", [gender, user_id])
@@ -563,7 +579,17 @@ async def _do_stop(user_id: int, context):
     partner = db_get_partner(user_id)
     if not partner:
         return
+
+    # Hitung durasi chat
+    info = db_get_chat_info(user_id)
+    duration = (time.time() - info["started_at"]) if info else 0
+
     db_remove_chat(user_id, partner)
+
+    # Update statistik kedua user
+    db_update_stats(user_id, duration)
+    db_update_stats(partner, duration)
+
     await context.bot.send_message(
         chat_id=user_id,
         text="👋 <i>Chat selesai.</i>",
@@ -1250,7 +1276,8 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["waiting_broadcast"] = True
         await context.bot.send_message(
             chat_id=ADMIN_ID,
-            text="📝 Kirim pesannya sekarang (bisa multiline):",
+            text="📝 Kirim pesannya sekarang (bisa multiline):\n\n<i>Ketik /cancel untuk batalkan.</i>",
+            parse_mode="HTML"
         )
 
     else:
@@ -1271,17 +1298,47 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kota   = p["kota"]   or "—"
     umur   = p["umur"]   or "—"
 
+    # Format join date
+    if p["first_seen"]:
+        import datetime
+        join_date = datetime.datetime.fromtimestamp(p["first_seen"]).strftime("%-d %B %Y")
+    else:
+        join_date = "—"
+
+    # Format total duration
+    total_sec = int(p["total_duration"])
+    total_str = f"{total_sec // 3600} jam {(total_sec % 3600) // 60} menit" if total_sec >= 3600 else f"{total_sec // 60} menit"
+
+    # Format longest chat
+    long_sec = int(p["longest_chat"])
+    long_str = f"{long_sec // 3600} jam {(long_sec % 3600) // 60} menit" if long_sec >= 3600 else f"{long_sec // 60} menit"
+
     await context.bot.send_message(
         chat_id=user_id,
         text=(
             "👤 <b>Profil kamu</b>\n\n"
-            f"⚧ Gender: <b>{gender}</b>\n"
-            f"📍 Kota: <b>{kota}</b>\n"
-            f"🎂 Umur: <b>{umur}</b>"
+            f"⚧ {gender}  •  📍 {kota}  •  🎂 {umur}\n\n"
+            "───────────────\n"
+            "✨ <b>Statistik</b>\n\n"
+            f"› 💬 Sudah ngobrol <b>{p['total_chats']}x</b>\n"
+            f"› ⏱ Total waktu: <b>{total_str}</b>\n"
+            f"› 🏆 Chat terlama: <b>{long_str}</b>\n"
+            f"› 📅 Join sejak <b>{join_date}</b>"
         ),
         parse_mode="HTML",
         reply_markup=btn_profile_edit()
     )
+
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    if context.user_data.get("waiting_broadcast"):
+        context.user_data["waiting_broadcast"] = False
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text="❌ Broadcast dibatalkan."
+        )
 
 
 async def notify_online(app):
@@ -1301,7 +1358,7 @@ async def notify_online(app):
 def main():
     init_db()
 
-    app = ApplicationBuilder().token(TOKEN).post_init(notify_online).build()
+    app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
@@ -1312,6 +1369,7 @@ def main():
     app.add_handler(CommandHandler("findgender", findgender))
     app.add_handler(CommandHandler("next", skip))
     app.add_handler(CommandHandler("stop", stop))
+    app.add_handler(CommandHandler("cancel", cancel))
     app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(~filters.COMMAND, message))
