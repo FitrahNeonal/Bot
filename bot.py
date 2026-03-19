@@ -1515,18 +1515,18 @@ async def game(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
         reply_markup=btn_game_invite()
     )
-    context.application.user_data.setdefault(partner, {})["game_invite_from"] = user_id
+    context.application.bot_data[f"game_invite_{partner}"] = user_id
 
 
 async def _handle_game_callbacks(data: str, user_id: int, query, context):
 
     # ── Terima invite ─────────────────────────────────────────────
     if data == "game_accept":
-        inviter = context.application.user_data.get(user_id, {}).get("game_invite_from")
+        inviter = context.application.bot_data.get(f"game_invite_{user_id}")
         if not inviter:
             await query.answer("Undangan sudah expired.")
             return
-        context.application.user_data[user_id]["game_invite_from"] = None
+        context.application.bot_data.pop(f"game_invite_{user_id}", None)
 
         if db_get_partner(user_id) != inviter or db_get_partner(inviter) != user_id:
             await query.answer("Kalian sudah tidak terhubung.")
@@ -1545,9 +1545,8 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
 
     # ── Tolak invite ──────────────────────────────────────────────
     if data == "game_decline":
-        inviter = context.application.user_data.get(user_id, {}).get("game_invite_from")
-        if user_id in context.application.user_data:
-            context.application.user_data[user_id]["game_invite_from"] = None
+        inviter = context.application.bot_data.get(f"game_invite_{user_id}")
+        context.application.bot_data.pop(f"game_invite_{user_id}", None)
         await query.answer("Oke, gak jadi.")
         await query.edit_message_reply_markup(reply_markup=None)
         if inviter:
@@ -1627,11 +1626,10 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
         partner_id = game_data["partner_id"]
         await query.answer("Siap!")
         await query.edit_message_reply_markup(reply_markup=None)
-        context.application.user_data.setdefault(user_id, {})["game_next_ready"] = True
-        partner_data = context.application.user_data.get(partner_id, {})
-        if partner_data.get("game_next_ready"):
-            context.application.user_data[user_id]["game_next_ready"] = False
-            context.application.user_data[partner_id]["game_next_ready"] = False
+        context.application.bot_data[f"game_next_ready_{user_id}"] = True
+        if context.application.bot_data.get(f"game_next_ready_{partner_id}"):
+            context.application.bot_data.pop(f"game_next_ready_{user_id}", None)
+            context.application.bot_data.pop(f"game_next_ready_{partner_id}", None)
             next_round = game_data["round"] + 1
             session_key = f"game_used_{min(user_id, partner_id)}_{max(user_id, partner_id)}"
             used = context.application.bot_data.get(session_key, [])
@@ -1652,11 +1650,10 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
             return
         await query.answer("Siap!")
         await query.edit_message_reply_markup(reply_markup=None)
-        context.application.user_data.setdefault(user_id, {})["game_replay_ready"] = True
-        partner_data = context.application.user_data.get(partner, {})
-        if partner_data.get("game_replay_ready"):
-            context.application.user_data[user_id]["game_replay_ready"] = False
-            context.application.user_data[partner]["game_replay_ready"] = False
+        context.application.bot_data[f"game_replay_ready_{user_id}"] = True
+        if context.application.bot_data.get(f"game_replay_ready_{partner}"):
+            context.application.bot_data.pop(f"game_replay_ready_{user_id}", None)
+            context.application.bot_data.pop(f"game_replay_ready_{partner}", None)
             session_key = f"game_used_{min(user_id, partner)}_{max(user_id, partner)}"
             context.application.bot_data.pop(session_key, None)
             question_id = _get_next_question([])
@@ -1674,15 +1671,14 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
             db_delete_game(user_id, game_data["partner_id"])
             session_key = f"game_used_{min(user_id, game_data['partner_id'])}_{max(user_id, game_data['partner_id'])}"
             context.application.bot_data.pop(session_key, None)
-            if game_data["partner_id"] in context.application.user_data:
-                context.application.user_data[game_data["partner_id"]]["game_replay_ready"] = False
-                context.application.user_data[game_data["partner_id"]]["game_next_ready"] = False
+            context.application.bot_data.pop(f'game_replay_ready_{game_data["partner_id"]}', None)
+            context.application.bot_data.pop(f'game_next_ready_{game_data["partner_id"]}', None)
             try:
                 await context.bot.send_message(chat_id=game_data["partner_id"], text="🎮 <i>Partner mengakhiri game.</i>", parse_mode="HTML")
             except TelegramError:
                 pass
-        context.application.user_data.setdefault(user_id, {})["game_replay_ready"] = False
-        context.application.user_data.setdefault(user_id, {})["game_next_ready"] = False
+        context.application.bot_data.pop(f"game_replay_ready_{user_id}", None)
+        context.application.bot_data.pop(f"game_next_ready_{user_id}", None)
         await query.answer("Game selesai!")
         await query.edit_message_reply_markup(reply_markup=None)
         return
@@ -1705,7 +1701,7 @@ async def notify_online(app):
 def main():
     init_db()
 
-    app = ApplicationBuilder().token(TOKEN).post_init(notify_online).build()
+    app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
