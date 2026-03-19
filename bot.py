@@ -79,11 +79,92 @@ MATCHED_MESSAGES = [
     "Jaga lisan (dan jari) ya, baik di dunia nyata maupun di sini. 🤍",
 ]
 
+# ─── Would You Rather — Bank Soal ────────────────────────────────────────────
+MAX_ROUNDS = 10
+GAME_TIMEOUT = 600  # 10 menit
+
+WYR_QUESTIONS = [
+    ("Ketahuan kentut di lift penuh orang", "Ketahuan ngupil di meeting kantor"),
+    ("Jadi orang paling ganteng/cantik tapi bau badan parah", "Biasa aja tapi wangi banget"),
+    ("Hidup tanpa internet selamanya", "Hidup tanpa AC/kipas selamanya"),
+    ("Makan nasi pake es krim setiap hari", "Minum kopi pake garam setiap hari"),
+    ("Ketahuan stalking mantan", "Ketahuan nangis nonton film kartun"),
+    ("Bisa baca pikiran orang tapi semua orang bisa baca pikiran kamu", "Tidak bisa baca pikiran siapapun"),
+    ("Dikejar mantan yang creepy", "Dikejar debt collector"),
+    ("Jadi orang paling lucu tapi jelek", "Jadi orang paling ganteng/cantik tapi boring"),
+    ("Tidur di kasur mewah tapi selalu mimpi buruk", "Tidur di lantai tapi selalu mimpi indah"),
+    ("Ketahuan gegoleran sambil dengerin lagu galau sendirian", "Ketahuan nyanyi-nyanyi sendiri di kamar mandi"),
+    ("Chat duluan ke crush", "Nungguin crush chat duluan sampai kiamat"),
+    ("Jadi viral karena hal memalukan", "Tidak pernah viral sama sekali"),
+    ("Punya teman banyak tapi semua fake", "Punya teman sedikit tapi tulus"),
+    ("Kerja keras tapi miskin", "Kerja santai tapi kaya"),
+    ("Diputusin lewat chat", "Diputusin di depan umum"),
+    ("Tau tanggal kematian kamu", "Tidak tau sama sekali"),
+    ("Bisa terbang tapi harus telanjang", "Tidak bisa terbang tapi pakai baju"),
+    ("Seumur hidup makan makanan yang sama tiap hari", "Tidak pernah makan makanan favorit lagi"),
+    ("Punya pacar yang over-protektif", "Punya pacar yang cuek banget"),
+    ("Ketahuan masih pakai sepatu bolong", "Ketahuan masih pakai dompet karton"),
+    ("Jadi orang paling pintar tapi tidak ada yang percaya", "Jadi orang biasa tapi semua orang percaya kamu"),
+    ("Hidup di dunia tanpa musik", "Hidup di dunia tanpa film"),
+    ("Bisa berbicara semua bahasa tapi tidak bisa baca tulis", "Bisa baca tulis semua bahasa tapi tidak bisa ngomong"),
+    ("Punya ingatan sempurna tentang semua hal buruk", "Lupa semua kenangan indah"),
+    ("Ketahuan ghosting teman", "Ketahuan bohong ke orang tua"),
+    ("Jadi orang kaya tapi kesepian", "Jadi orang biasa tapi dikelilingi orang yang sayang"),
+    ("Tidak bisa tidur lebih dari 4 jam sehari", "Tidak bisa bangun sebelum 12 siang"),
+    ("Punya mantan yang masih sering DM", "Punya mantan yang totally ghosting kamu"),
+    ("Ketahuan masih takut gelap", "Ketahuan masih takut laba-laba"),
+    ("Hidup tanpa sosmed selamanya", "Hidup tanpa smartphone tapi boleh sosmed di PC"),
+    ("Tau semua rahasia orang sekitar kamu", "Semua orang tau semua rahasia kamu"),
+    ("Dijodohin sama orang tua", "Cari jodoh sendiri tapi susah banget"),
+    ("Kerja dari rumah selamanya", "Kerja di kantor selamanya"),
+    ("Bisa makan apapun tanpa gemuk", "Bisa begadang tanpa mengantuk"),
+    ("Ketahuan PHP-in orang", "Ketahuan di-PHP-in orang"),
+    ("Punya gebetan yang tidak tau kamu ada", "Tidak punya gebetan tapi semua orang naksir kamu"),
+    ("Hidup di zaman dinosaurus", "Hidup di zaman robot mengambil alih dunia"),
+    ("Jadi orang paling populer tapi tidak punya privasi", "Jadi orang tidak dikenal tapi bebas banget"),
+    ("Bisa waktu balik ke masa lalu tapi tidak bisa ubah apapun", "Bisa lihat masa depan tapi tidak bisa ubah apapun"),
+    ("Ketahuan ngemil tengah malam sendirian", "Ketahuan rebahan seharian tanpa mandi"),
+    ("Punya skill apapun tapi tidak bisa belajar hal baru", "Tidak punya skill tapi bisa belajar apapun super cepat"),
+    ("Dikenal sebagai orang yang selalu telat", "Dikenal sebagai orang yang terlalu lebay"),
+    ("Chat sama crush tapi typo mulu", "Tidak bisa chat sama crush sama sekali"),
+    ("Bisa terbang tapi cuma setinggi 30cm dari tanah", "Tidak bisa terbang tapi bisa lari 100km/jam"),
+    ("Jadi orang yang selalu salah paham", "Jadi orang yang selalu disalahpahami"),
+    ("Punya teman yang suka spoiler film", "Punya teman yang suka minta rekomendasi tapi tidak pernah nonton"),
+    ("Ketahuan nonton drakor sambil nangis", "Ketahuan nonton film horor sambil teriak-teriak"),
+    ("Hidup tanpa kopi selamanya", "Hidup tanpa mie instan selamanya"),
+    ("Bisa baca semua buku dalam semalam tapi lupa besoknya", "Baca satu buku seminggu tapi ingat selamanya"),
+    ("Jadi orang yang selalu overthinking", "Jadi orang yang tidak pernah mikir panjang"),
+]
+
 CARI_PARTNER = ReplyKeyboardMarkup(
     [["🚀 Cari partner"], ["📊 Stats"]],
     resize_keyboard=True,
     input_field_placeholder="🚀 Cari partner"
 )
+
+def btn_game_invite():
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Mau!", callback_data="game_accept"),
+        InlineKeyboardButton("❌ Gak mau", callback_data="game_decline"),
+    ]])
+
+def btn_game_answer(round_num: int):
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🅰️ Pilihan A", callback_data=f"game_answer_A_{round_num}"),
+        InlineKeyboardButton("🅱️ Pilihan B", callback_data=f"game_answer_B_{round_num}"),
+    ]])
+
+def btn_game_next():
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("▶️ Ronde berikutnya", callback_data="game_next"),
+        InlineKeyboardButton("❌ Selesai", callback_data="game_end"),
+    ]])
+
+def btn_game_replay():
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🔄 Main lagi", callback_data="game_replay"),
+        InlineKeyboardButton("❌ Selesai", callback_data="game_end"),
+    ]])
 
 def btn_waiting():
     return InlineKeyboardMarkup([[InlineKeyboardButton("❌ Batalkan", callback_data="cancel_find")]])
@@ -366,6 +447,34 @@ def db_update_stats(user_id: int, duration: float):
         WHERE user_id = ?
     """, [duration, duration, user_id])
 
+# ─── Game DB ──────────────────────────────────────────────────────────────────
+def db_create_game(user_id: int, partner_id: int, question_id: int):
+    now = time.time()
+    execute_turso("INSERT OR REPLACE INTO game_sessions (user_id, partner_id, question_id, answer, round, started_at) VALUES (?, ?, ?, NULL, 1, ?)", [user_id, partner_id, question_id, now])
+    execute_turso("INSERT OR REPLACE INTO game_sessions (user_id, partner_id, question_id, answer, round, started_at) VALUES (?, ?, ?, NULL, 1, ?)", [partner_id, user_id, question_id, now])
+
+def db_get_game(user_id: int) -> dict | None:
+    rows = execute_turso("SELECT partner_id, question_id, answer, round, started_at FROM game_sessions WHERE user_id = ?", [user_id])
+    if not rows:
+        return None
+    return {
+        "partner_id":  int(rows[0][0]),
+        "question_id": int(rows[0][1]),
+        "answer":      rows[0][2],
+        "round":       int(rows[0][3] or 1),
+        "started_at":  float(rows[0][4]),
+    }
+
+def db_set_game_answer(user_id: int, answer: str):
+    execute_turso("UPDATE game_sessions SET answer = ? WHERE user_id = ?", [answer, user_id])
+
+def db_next_game_round(user_id: int, partner_id: int, question_id: int, round_num: int):
+    execute_turso("UPDATE game_sessions SET question_id = ?, answer = NULL, round = ?, started_at = ? WHERE user_id = ?", [question_id, round_num, time.time(), user_id])
+    execute_turso("UPDATE game_sessions SET question_id = ?, answer = NULL, round = ?, started_at = ? WHERE user_id = ?", [question_id, round_num, time.time(), partner_id])
+
+def db_delete_game(user_id: int, partner_id: int):
+    execute_turso("DELETE FROM game_sessions WHERE user_id = ? OR user_id = ?", [user_id, partner_id])
+
 def db_set_gender(user_id: int, gender: str):
     execute_turso("UPDATE users SET gender = ? WHERE user_id = ?", [gender, user_id])
 
@@ -585,6 +694,14 @@ async def _do_stop(user_id: int, context):
     duration = (time.time() - info["started_at"]) if info else 0
 
     db_remove_chat(user_id, partner)
+
+    # Hapus game kalau ada
+    if db_get_game(user_id):
+        db_delete_game(user_id, partner)
+        try:
+            await context.bot.send_message(chat_id=partner, text="🎮 <i>Game selesai karena partner disconnect.</i>", parse_mode="HTML")
+        except TelegramError:
+            pass
 
     # Update statistik kedua user
     db_update_stats(user_id, duration)
@@ -1139,6 +1256,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ── Game callbacks ────────────────────────────────────────────
+    if data.startswith("game_"):
+        await _handle_game_callbacks(data, user_id, query, context)
+        return
+
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     s = db_get_stats()
@@ -1341,6 +1463,231 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def _send_game_question(bot, user_id: int, partner_id: int, round_num: int, question_id: int):
+    q = WYR_QUESTIONS[question_id]
+    text = (
+        f"🎮 <b>Would You Rather — Ronde {round_num}</b>\n\n"
+        f"Pilih salah satu:\n\n"
+        f"🅰️ {q[0]}\n\n"
+        f"🅱️ {q[1]}"
+    )
+    await bot.send_message(chat_id=user_id, text=text, parse_mode="HTML", reply_markup=btn_game_answer(round_num))
+    await bot.send_message(chat_id=partner_id, text=text, parse_mode="HTML", reply_markup=btn_game_answer(round_num))
+
+
+def _get_next_question(used: list) -> int:
+    """Ambil question_id yang belum pernah dipakai di sesi ini."""
+    available = [i for i in range(len(WYR_QUESTIONS)) if i not in used]
+    if not available:
+        # Semua soal sudah dipakai, reset
+        available = list(range(len(WYR_QUESTIONS)))
+    return random.choice(available)
+
+
+async def game(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    partner = db_get_partner(user_id)
+
+    if not partner:
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="⚠️ <i>Kamu harus punya partner dulu buat main game. Pakai /find dulu!</i>",
+            parse_mode="HTML"
+        )
+        return
+
+    if db_get_game(user_id):
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="⚠️ <i>Kalian lagi ada game yang belum selesai!</i>",
+            parse_mode="HTML"
+        )
+        return
+
+    await context.bot.send_message(
+        chat_id=user_id,
+        text="📨 <i>Undangan game dikirim ke partner kamu...</i>",
+        parse_mode="HTML"
+    )
+    await context.bot.send_message(
+        chat_id=partner,
+        text="🎮 <b>Partner kamu ngajak main Would You Rather!</b>\n\nMau main bareng?",
+        parse_mode="HTML",
+        reply_markup=btn_game_invite()
+    )
+    context.application.user_data.setdefault(partner, {})["game_invite_from"] = user_id
+
+
+async def _handle_game_callbacks(data: str, user_id: int, query, context):
+
+    # ── Terima invite ─────────────────────────────────────────────
+    if data == "game_accept":
+        inviter = context.application.user_data.get(user_id, {}).get("game_invite_from")
+        if not inviter:
+            await query.answer("Undangan sudah expired.")
+            return
+        context.application.user_data[user_id]["game_invite_from"] = None
+
+        if db_get_partner(user_id) != inviter or db_get_partner(inviter) != user_id:
+            await query.answer("Kalian sudah tidak terhubung.")
+            return
+
+        question_id = _get_next_question([])
+        session_key = f"game_used_{min(user_id, inviter)}_{max(user_id, inviter)}"
+        context.application.bot_data[session_key] = [question_id]
+        db_create_game(user_id, inviter, question_id)
+
+        await query.answer("Game dimulai!")
+        await query.edit_message_reply_markup(reply_markup=None)
+        await context.bot.send_message(chat_id=inviter, text="✅ <i>Partner setuju! Game dimulai...</i>", parse_mode="HTML")
+        await _send_game_question(context.bot, user_id, inviter, 1, question_id)
+        return
+
+    # ── Tolak invite ──────────────────────────────────────────────
+    if data == "game_decline":
+        inviter = context.application.user_data.get(user_id, {}).get("game_invite_from")
+        if user_id in context.application.user_data:
+            context.application.user_data[user_id]["game_invite_from"] = None
+        await query.answer("Oke, gak jadi.")
+        await query.edit_message_reply_markup(reply_markup=None)
+        if inviter:
+            await context.bot.send_message(chat_id=inviter, text="😔 <i>Partner kamu gak mau main game.</i>", parse_mode="HTML")
+        return
+
+    # ── Jawab pertanyaan ──────────────────────────────────────────
+    if data.startswith("game_answer_"):
+        parts = data.split("_")
+        answer = parts[2]
+        round_num = int(parts[3])
+
+        game_data = db_get_game(user_id)
+        if not game_data:
+            await query.answer("Game sudah selesai.")
+            return
+
+        if time.time() - game_data["started_at"] > GAME_TIMEOUT:
+            db_delete_game(user_id, game_data["partner_id"])
+            session_key = f"game_used_{min(user_id, game_data['partner_id'])}_{max(user_id, game_data['partner_id'])}"
+            context.application.bot_data.pop(session_key, None)
+            await query.answer("Game timeout!")
+            await query.edit_message_reply_markup(reply_markup=None)
+            await context.bot.send_message(chat_id=user_id, text="⏰ <i>Game selesai karena timeout.</i>", parse_mode="HTML")
+            try:
+                await context.bot.send_message(chat_id=game_data["partner_id"], text="⏰ <i>Game selesai karena timeout.</i>", parse_mode="HTML")
+            except TelegramError:
+                pass
+            return
+
+        if game_data["round"] != round_num:
+            await query.answer("Ronde sudah berlalu.")
+            return
+
+        if game_data["answer"]:
+            await query.answer("Kamu sudah jawab, tunggu partner! ⏳")
+            return
+
+        db_set_game_answer(user_id, answer)
+        await query.answer("✅ Jawaban tersimpan! Tunggu partner...")
+        await query.edit_message_reply_markup(reply_markup=None)
+
+        # Cek partner dulu sebelum kirim notif (Bug 1 & 2 fix)
+        partner_game = db_get_game(game_data["partner_id"])
+        if partner_game and partner_game["answer"]:
+            partner_answer = partner_game["answer"]
+            q = WYR_QUESTIONS[game_data["question_id"]]
+            user_choice = q[0] if answer == "A" else q[1]
+            partner_choice = q[0] if partner_answer == "A" else q[1]
+            result_text = "🎉 <b>Sama!</b> Kalian kompak banget haha" if answer == partner_answer else "😮 <b>Beda!</b> Seru nih, ada yang perlu dijelasin nih"
+            reveal = (
+                f"📊 <b>Hasil Ronde {round_num}</b>\n\n"
+                f"Kamu: <b>{answer} — {user_choice}</b>\n"
+                f"Partner: <b>{partner_answer} — {partner_choice}</b>\n\n"
+                f"{result_text}"
+            )
+            max_rounds = 999 if user_id == ADMIN_ID or game_data["partner_id"] == ADMIN_ID else MAX_ROUNDS
+            if round_num >= max_rounds:
+                db_delete_game(user_id, game_data["partner_id"])
+                session_key = f"game_used_{min(user_id, game_data['partner_id'])}_{max(user_id, game_data['partner_id'])}"
+                context.application.bot_data.pop(session_key, None)
+                await context.bot.send_message(chat_id=user_id, text=reveal + "\n\n🏁 <b>Game selesai!</b>", parse_mode="HTML", reply_markup=btn_game_replay())
+                await context.bot.send_message(chat_id=game_data["partner_id"], text=reveal + "\n\n🏁 <b>Game selesai!</b>", parse_mode="HTML", reply_markup=btn_game_replay())
+            else:
+                await context.bot.send_message(chat_id=user_id, text=reveal, parse_mode="HTML", reply_markup=btn_game_next())
+                await context.bot.send_message(chat_id=game_data["partner_id"], text=reveal, parse_mode="HTML", reply_markup=btn_game_next())
+        else:
+            await context.bot.send_message(chat_id=game_data["partner_id"], text="👀 <i>Partner sudah jawab, sekarang giliran kamu!</i>", parse_mode="HTML")
+        return
+
+    # ── Ronde berikutnya ──────────────────────────────────────────
+    if data == "game_next":
+        game_data = db_get_game(user_id)
+        if not game_data:
+            await query.answer("Game sudah selesai.")
+            return
+        partner_id = game_data["partner_id"]
+        await query.answer("Siap!")
+        await query.edit_message_reply_markup(reply_markup=None)
+        context.application.user_data.setdefault(user_id, {})["game_next_ready"] = True
+        partner_data = context.application.user_data.get(partner_id, {})
+        if partner_data.get("game_next_ready"):
+            context.application.user_data[user_id]["game_next_ready"] = False
+            context.application.user_data[partner_id]["game_next_ready"] = False
+            next_round = game_data["round"] + 1
+            session_key = f"game_used_{min(user_id, partner_id)}_{max(user_id, partner_id)}"
+            used = context.application.bot_data.get(session_key, [])
+            question_id = _get_next_question(used)
+            used.append(question_id)
+            context.application.bot_data[session_key] = used
+            db_next_game_round(user_id, partner_id, question_id, next_round)
+            await _send_game_question(context.bot, user_id, partner_id, next_round, question_id)
+        else:
+            await context.bot.send_message(chat_id=partner_id, text="✅ <i>Partner sudah siap ronde berikutnya!</i>", parse_mode="HTML")
+        return
+
+    # ── Main lagi ─────────────────────────────────────────────────
+    if data == "game_replay":
+        partner = db_get_partner(user_id)
+        if not partner:
+            await query.answer("Kamu sudah tidak punya partner.")
+            return
+        await query.answer("Siap!")
+        await query.edit_message_reply_markup(reply_markup=None)
+        context.application.user_data.setdefault(user_id, {})["game_replay_ready"] = True
+        partner_data = context.application.user_data.get(partner, {})
+        if partner_data.get("game_replay_ready"):
+            context.application.user_data[user_id]["game_replay_ready"] = False
+            context.application.user_data[partner]["game_replay_ready"] = False
+            session_key = f"game_used_{min(user_id, partner)}_{max(user_id, partner)}"
+            context.application.bot_data.pop(session_key, None)
+            question_id = _get_next_question([])
+            context.application.bot_data[session_key] = [question_id]
+            db_create_game(user_id, partner, question_id)
+            await _send_game_question(context.bot, user_id, partner, 1, question_id)
+        else:
+            await context.bot.send_message(chat_id=partner, text="🔄 <i>Partner mau main lagi! Pencet \'Main lagi\' kalau kamu juga mau.</i>", parse_mode="HTML")
+        return
+
+    # ── Akhiri game ───────────────────────────────────────────────
+    if data == "game_end":
+        game_data = db_get_game(user_id)
+        if game_data:
+            db_delete_game(user_id, game_data["partner_id"])
+            session_key = f"game_used_{min(user_id, game_data['partner_id'])}_{max(user_id, game_data['partner_id'])}"
+            context.application.bot_data.pop(session_key, None)
+            if game_data["partner_id"] in context.application.user_data:
+                context.application.user_data[game_data["partner_id"]]["game_replay_ready"] = False
+                context.application.user_data[game_data["partner_id"]]["game_next_ready"] = False
+            try:
+                await context.bot.send_message(chat_id=game_data["partner_id"], text="🎮 <i>Partner mengakhiri game.</i>", parse_mode="HTML")
+            except TelegramError:
+                pass
+        context.application.user_data.setdefault(user_id, {})["game_replay_ready"] = False
+        context.application.user_data.setdefault(user_id, {})["game_next_ready"] = False
+        await query.answer("Game selesai!")
+        await query.edit_message_reply_markup(reply_markup=None)
+        return
+
+
 async def notify_online(app):
     rows = execute_turso("SELECT DISTINCT user_id FROM active_chats")
     for (user_id,) in rows:
@@ -1358,7 +1705,7 @@ async def notify_online(app):
 def main():
     init_db()
 
-    app = ApplicationBuilder().token(TOKEN).build()
+    app = ApplicationBuilder().token(TOKEN).post_init(notify_online).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
@@ -1369,6 +1716,7 @@ def main():
     app.add_handler(CommandHandler("findgender", findgender))
     app.add_handler(CommandHandler("next", skip))
     app.add_handler(CommandHandler("stop", stop))
+    app.add_handler(CommandHandler("game", game))
     app.add_handler(CommandHandler("cancel", cancel))
     app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CallbackQueryHandler(callback_handler))
