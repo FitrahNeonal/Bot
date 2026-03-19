@@ -1523,12 +1523,16 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
     # ── Terima invite ─────────────────────────────────────────────
     if data == "game_accept":
         inviter = context.application.bot_data.get(f"game_invite_{user_id}")
+        logger.info("game_accept: user_id=%s inviter=%s (type=%s)", user_id, inviter, type(inviter))
         if not inviter:
             await query.answer("Undangan sudah expired.")
             return
         context.application.bot_data.pop(f"game_invite_{user_id}", None)
 
-        if db_get_partner(user_id) != inviter or db_get_partner(inviter) != user_id:
+        partner_of_user = db_get_partner(user_id)
+        partner_of_inviter = db_get_partner(inviter)
+        logger.info("game_accept: partner_of_user=%s partner_of_inviter=%s", partner_of_user, partner_of_inviter)
+        if partner_of_user != inviter or partner_of_inviter != user_id:
             await query.answer("Kalian sudah tidak terhubung.")
             return
 
@@ -1701,7 +1705,7 @@ async def notify_online(app):
 def main():
     init_db()
 
-    app = ApplicationBuilder().token(TOKEN).build()
+    app = ApplicationBuilder().token(TOKEN).post_init(notify_online).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
