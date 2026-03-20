@@ -1298,17 +1298,27 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
-            "🎭 <b>Anonyneo — cheat sheet</b>\n\n"
-            "🚀 /find — cari partner random\n"
-            "⚧️ /findgender — pilih mau ketemu cowok/cewek\n"
-            "⏭ /next — skip, cari yang lain\n"
+            "🎭 <b>Anonyneo — panduan</b>\n\n"
+            "🚀 /find — cari partner random, langsung match\n"
+            "⚧️ /findgender — pilih dulu mau ketemu cowok atau cewek\n"
+            "⏭ /next — skip partner sekarang, cari yang baru\n"
             "🛑 /stop — akhiri chat\n"
-            "🎮 /game — main Would You Rather sama partner\n"
-            "👤 /profile — lihat profil + statistik kamu\n"
-            "📊 /stats — berapa orang lagi online\n"
-            "🔗 /invite — ajak temen, dapet notif kalau mereka join\n\n"
-            "⚠️ Spam, NSFW, info pribadi orang → langsung report aja.\n"
-            "3 report = auto-banned. Serius."
+            "🎮 /game — main Would You Rather bareng partner\n"
+            "👤 /profile — lihat profil + statistik chat kamu\n"
+            "📊 /stats — cek berapa orang lagi online\n"
+            "🔗 /invite — dapetin link buat ajak temen\n\n"
+            "<b>Cara mulai:</b>\n"
+            "1. Ketik /find\n"
+            "2. Tunggu partner ketemu (biasanya cepet)\n"
+            "3. Langsung kirim pesan aja — identitas kamu aman, anonim total\n"
+            "4. Kalau mau ganti partner, pencet tombol ⏭ Skip\n\n"
+            "<b>Setelah chat selesai:</b>\n"
+            "Ada tombol 🔄 Hubungkan lagi — kalau mau balik ke partner yang sama, dua-duanya harus pencet. Berlaku 6 jam.\n\n"
+            "⚠️ Spam, konten dewasa, atau nyebarin info pribadi orang → langsung report. 3 report = auto-banned.\n\n"
+            "———\n"
+            "🐛 Ada bug atau pertanyaan?\n"
+            "Join channel → @anonyneo\n"
+            "Atau cek bio bot buat kontak owner langsung."
         ),
         parse_mode="HTML"
     )
@@ -1730,7 +1740,7 @@ async def notify_online(app):
 def main():
     init_db()
 
-    app = ApplicationBuilder().token(TOKEN).post_init(notify_online).build()
+    app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
