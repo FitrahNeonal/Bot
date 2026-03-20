@@ -626,7 +626,7 @@ async def _do_find(user_id: int, context, gender_pref: str | None = None):
         pref_text = f" (nyari: {gender_pref})" if gender_pref and gender_pref != "random" else ""
         await context.bot.send_message(
             chat_id=user_id,
-            text=f"🔎 <i>Lagi nyariin partner buat kamu{pref_text}...</i>\nAda <b>{online}</b> orang online sekarang.\n\nKetik /stop untuk batalkan.",
+            text=f"🔎 <i>Lagi scanning{pref_text}... bentar lagi ketemu nih.</i>\n<b>{online}</b> orang online sekarang.\n\nKetik /stop untuk batalkan.",
             parse_mode="HTML",
             reply_markup=ReplyKeyboardRemove()
         )
@@ -714,7 +714,7 @@ async def _do_stop(user_id: int, context):
     )
     await context.bot.send_message(
         chat_id=user_id,
-        text="Makasih udah mampir! Semoga obrolannya berkesan. 🌙",
+        text="Makasih udah mampir! Semoga ada yang nyantol dari obrolannya. 🎭",
         reply_markup=btn_after_stop(partner)
     )
     await context.bot.send_message(
@@ -724,7 +724,7 @@ async def _do_stop(user_id: int, context):
     )
     await context.bot.send_message(
         chat_id=partner,
-        text="💨 <i>Partner kamu udah cabut.</i>",
+        text="💨 <i>Partner cabut duluan. Ghosted in real time 💀</i>",
         parse_mode="HTML"
     )
     await context.bot.send_message(
@@ -764,15 +764,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except TelegramError:
             pass
 
+    s = db_get_stats()
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
-            "👤 <b>Anonymous Chat</b>\n"
-            "Chat sama orang random, tanpa ketahuan siapa kamu.\n\n"
-            "Tekan tombol di bawah buat mulai.\n"
-            "/help kalau butuh panduan.\n\n"
-            f"👥 Udah <b>{db_get_stats()['total']}</b> orang yang pernah mampir.\n\n"
-            "💬 Ada saran? → https://feedbackneo.vercel.app"
+            "🎭 <b>Anonyneo</b>\n\n"
+            "Ngobrol sama orang asing. Anonim total.\n"
+            "Gak ada nama, gak ada akun, langsung match.\n\n"
+            f"👥 <b>{s['total']}</b> orang udah nyobain.\n"
+            f"💬 <b>{s['chatting']}</b> pasang lagi ngobrol sekarang.\n\n"
+            "Ketik /find buat mulai, atau /help buat panduan lengkap."
         ),
         parse_mode="HTML",
         reply_markup=CARI_PARTNER
@@ -871,7 +872,7 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not partner:
         await context.bot.send_message(
             chat_id=user_id,
-            text="<i>Kamu belum punya partner. 👀\n\nPakai /find dulu buat nyari seseorang.</i>",
+            text="<i>Lah, ngobrol sama siapa? /find dulu dong 👀</i>",
             parse_mode="HTML"
         )
         return
@@ -1297,28 +1298,19 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
-            "<b>Anonymous Chat — Cara Pakai</b>\n\n"
-            "<b>1. Cari partner</b>\n"
-            "Ketik /find atau tekan tombol <b>🚀 Cari partner</b>.\n\n"
-            "<b>2. Mulai chat</b>\n"
-            "Begitu partner ketemu, langsung kirim pesan aja.\n"
-            "Identitas kamu tetap anonim.\n\n"
-            "<b>3. Ganti / stop / report</b>\n"
-            "Gunakan tombol <b>⏭ Skip</b> atau /next, <b>🛑 Stop</b>, atau <b>🚩 Report</b> di bawah pesan.\n\n"
-            "<b>4. Hubungkan lagi</b>\n"
-            "Setelah chat selesai, ada tombol <b>🔄 Hubungkan lagi</b> kalau mau balik ke partner yang sama.\n"
-            "Berlaku 6 jam, dan harus disetujui kedua pihak.\n\n"
-            "<b>5. Ajak teman</b>\n"
-            "/invite — dapat link untuk ajak temenmu.\n\n"
-            "<b>6. Profil</b>\n"
-            "/profile — lihat dan edit profil kamu.\n\n"
-            "<b>7. Statistik</b>\n"
-            "/stats — lihat berapa orang yang lagi online.\n\n"
-            "⚠️ <b>Jangan</b> spam, NSFW, atau nyebarin info pribadi orang.\n\n"
-            "Ada masukan? Feedback kamu sangat berarti."
+            "🎭 <b>Anonyneo — cheat sheet</b>\n\n"
+            "🚀 /find — cari partner random\n"
+            "⚧️ /findgender — pilih mau ketemu cowok/cewek\n"
+            "⏭ /next — skip, cari yang lain\n"
+            "🛑 /stop — akhiri chat\n"
+            "🎮 /game — main Would You Rather sama partner\n"
+            "👤 /profile — lihat profil + statistik kamu\n"
+            "📊 /stats — berapa orang lagi online\n"
+            "🔗 /invite — ajak temen, dapet notif kalau mereka join\n\n"
+            "⚠️ Spam, NSFW, info pribadi orang → langsung report aja.\n"
+            "3 report = auto-banned. Serius."
         ),
-        parse_mode="HTML",
-        reply_markup=FEEDBACK_BUTTON
+        parse_mode="HTML"
     )
 
 
@@ -1610,25 +1602,37 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
         if partner_game and partner_game["answer"]:
             partner_answer = partner_game["answer"]
             q = WYR_QUESTIONS[game_data["question_id"]]
+
+            # Perspektif user yang jawab duluan
             user_choice = q[0] if answer == "A" else q[1]
             partner_choice = q[0] if partner_answer == "A" else q[1]
             result_text = "🎉 <b>Sama!</b> Kalian kompak banget haha" if answer == partner_answer else "😮 <b>Beda!</b> Seru nih, ada yang perlu dijelasin nih"
-            reveal = (
+
+            reveal_for_user = (
                 f"📊 <b>Hasil Ronde {round_num}</b>\n\n"
                 f"Kamu: <b>{answer} — {user_choice}</b>\n"
                 f"Partner: <b>{partner_answer} — {partner_choice}</b>\n\n"
                 f"{result_text}"
             )
+
+            # Perspektif partner — Kamu dan Partner dibalik
+            reveal_for_partner = (
+                f"📊 <b>Hasil Ronde {round_num}</b>\n\n"
+                f"Kamu: <b>{partner_answer} — {partner_choice}</b>\n"
+                f"Partner: <b>{answer} — {user_choice}</b>\n\n"
+                f"{result_text}"
+            )
+
             max_rounds = 999 if user_id == ADMIN_ID or game_data["partner_id"] == ADMIN_ID else MAX_ROUNDS
             if round_num >= max_rounds:
                 db_delete_game(user_id, game_data["partner_id"])
                 session_key = f"game_used_{min(user_id, game_data['partner_id'])}_{max(user_id, game_data['partner_id'])}"
                 context.application.bot_data.pop(session_key, None)
-                await context.bot.send_message(chat_id=user_id, text=reveal + "\n\n🏁 <b>Game selesai!</b>", parse_mode="HTML", reply_markup=btn_game_replay())
-                await context.bot.send_message(chat_id=game_data["partner_id"], text=reveal + "\n\n🏁 <b>Game selesai!</b>", parse_mode="HTML", reply_markup=btn_game_replay())
+                await context.bot.send_message(chat_id=user_id, text=reveal_for_user + "\n\n🏁 <b>Game selesai!</b>", parse_mode="HTML", reply_markup=btn_game_replay())
+                await context.bot.send_message(chat_id=game_data["partner_id"], text=reveal_for_partner + "\n\n🏁 <b>Game selesai!</b>", parse_mode="HTML", reply_markup=btn_game_replay())
             else:
-                await context.bot.send_message(chat_id=user_id, text=reveal, parse_mode="HTML", reply_markup=btn_game_next())
-                await context.bot.send_message(chat_id=game_data["partner_id"], text=reveal, parse_mode="HTML", reply_markup=btn_game_next())
+                await context.bot.send_message(chat_id=user_id, text=reveal_for_user, parse_mode="HTML", reply_markup=btn_game_next())
+                await context.bot.send_message(chat_id=game_data["partner_id"], text=reveal_for_partner, parse_mode="HTML", reply_markup=btn_game_next())
         else:
             await context.bot.send_message(chat_id=game_data["partner_id"], text="👀 <i>Partner sudah jawab, sekarang giliran kamu!</i>", parse_mode="HTML")
         return
