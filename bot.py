@@ -221,6 +221,12 @@ def btn_reconnect(partner_id: int):
         InlineKeyboardButton("🔄 Hubungkan lagi", callback_data=f"reconnect_{partner_id}")
     ]])
 
+def btn_notify_opt_in():
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🔔 Iya, kabarin aku", callback_data="notify_yes"),
+        InlineKeyboardButton("🚫 Gak usah", callback_data="notify_no"),
+    ]])
+
 def btn_find_again():
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("🔍 Cari partner baru", callback_data="find_again")
@@ -308,6 +314,10 @@ def execute_turso(sql: str, params: list = None) -> list:
 
 def init_db():
     for sql in [
+        """CREATE TABLE IF NOT EXISTS notify_list (
+            user_id  INTEGER PRIMARY KEY,
+            added_at REAL NOT NULL
+        )""",
         """CREATE TABLE IF NOT EXISTS active_chats (
             user_id INTEGER PRIMARY KEY,
             partner_id INTEGER NOT NULL,
@@ -559,6 +569,19 @@ def db_check_reconnect(user_a: int, user_b: int) -> bool:
         return False
     return now - float(rows_a[0][0]) < RECONNECT_TTL and now - float(rows_b[0][0]) < RECONNECT_TTL
 
+def db_add_notify(user_id: int):
+    execute_turso(
+        "INSERT OR REPLACE INTO notify_list VALUES (?, ?)",
+        [user_id, time.time()]
+    )
+
+def db_pop_notify_all(ttl: int = 10800) -> list:
+    cutoff = time.time() - ttl
+    execute_turso("DELETE FROM notify_list WHERE added_at < ?", [cutoff])
+    rows = execute_turso("SELECT user_id FROM notify_list")
+    execute_turso("DELETE FROM notify_list")
+    return [int(r[0]) for r in rows]
+
 def db_clear_reconnect(user_a: int, user_b: int):
     execute_turso(
         "DELETE FROM reconnect_requests WHERE (user_id = ? AND partner_id = ?) OR (user_id = ? AND partner_id = ?)",
@@ -643,6 +666,23 @@ async def _do_find(user_id: int, context, gender_pref: str | None = None):
         logger.info("Matched: %s <-> %s", user_id, partner)
     else:
         db_add_waiting(user_id, gender_pref)
+
+        # Ping notify list
+        to_notify = db_pop_notify_all()
+        for notify_id in to_notify:
+            if notify_id == user_id:
+                continue
+            if db_is_waiting(notify_id):
+                continue
+            try:
+                await context.bot.send_message(
+                    chat_id=notify_id,
+                    text="👋 <i>Ada yang lagi nyari partner nih! Mau /find lagi?</i>",
+                    parse_mode="HTML"
+                )
+            except TelegramError:
+                pass
+
         s = db_get_stats()
         online = s["chatting"] * 2 + s["waiting"]
         pref_text = f" (nyari: {gender_pref})" if gender_pref and gender_pref != "random" else ""
@@ -939,6 +979,12 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML",
             reply_markup=CARI_PARTNER
         )
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="🔔 <i>Mau aku kabarin kalau ada yang lagi nyari partner?</i>",
+            parse_mode="HTML",
+            reply_markup=btn_notify_opt_in()
+        )
         return
     if not db_get_partner(user_id):
         await context.bot.send_message(
@@ -965,6 +1011,23 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     await _remove_inline_buttons(context, query.message.chat_id, query.message.message_id)
 
+    if data == "notify_yes":
+        db_add_notify(user_id)
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="✅ <i>Siap! Aku kabarin kalau ada yang nyari.</i>",
+            parse_mode="HTML"
+        )
+        return
+
+    if data == "notify_no":
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="👍 <i>Oke, santuy.</i>",
+            parse_mode="HTML"
+        )
+        return
+
     if data == "cancel_find":
         if db_is_waiting(user_id):
             db_remove_waiting(user_id)
@@ -972,6 +1035,12 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=user_id,
                 text="🛑 <i>Pencarian dibatalkan. Santuy.</i>",
                 parse_mode="HTML"
+            )
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="🔔 <i>Mau aku kabarin kalau ada yang lagi nyari partner?</i>",
+                parse_mode="HTML",
+                reply_markup=btn_notify_opt_in()
             )
         return
 
@@ -1788,6 +1857,8 @@ def main():
     app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(~filters.COMMAND, message))
+
+    app.post_init = notify_online
 
     logger.info("Bot started.")
     app.run_polling()
