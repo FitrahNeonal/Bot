@@ -443,9 +443,9 @@ def db_update_stats(user_id: int, duration: float):
         UPDATE users SET
             total_chats = total_chats + 1,
             total_duration = total_duration + ?,
-            longest_chat = MAX(longest_chat, ?)
+            longest_chat = CASE WHEN ? > longest_chat THEN ? ELSE longest_chat END
         WHERE user_id = ?
-    """, [duration, duration, user_id])
+    """, [duration, duration, duration, user_id])
 
 # ─── Game DB ──────────────────────────────────────────────────────────────────
 def db_create_game(user_id: int, partner_id: int, question_id: int):
@@ -1431,11 +1431,21 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Format total duration
     total_sec = int(p["total_duration"])
-    total_str = f"{total_sec // 3600} jam {(total_sec % 3600) // 60} menit" if total_sec >= 3600 else f"{total_sec // 60} menit"
+    if total_sec == 0:
+        total_str = "—"
+    elif total_sec >= 3600:
+        total_str = f"{total_sec // 3600} jam {(total_sec % 3600) // 60} menit"
+    else:
+        total_str = f"{total_sec // 60} menit"
 
     # Format longest chat
     long_sec = int(p["longest_chat"])
-    long_str = f"{long_sec // 3600} jam {(long_sec % 3600) // 60} menit" if long_sec >= 3600 else f"{long_sec // 60} menit"
+    if long_sec == 0:
+        long_str = "—"
+    elif long_sec >= 3600:
+        long_str = f"{long_sec // 3600} jam {(long_sec % 3600) // 60} menit"
+    else:
+        long_str = f"{long_sec // 60} menit"
 
     await context.bot.send_message(
         chat_id=user_id,
