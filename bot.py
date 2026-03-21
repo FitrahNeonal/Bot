@@ -688,7 +688,7 @@ async def _do_find(user_id: int, context, gender_pref: str | None = None):
         pref_text = f" (nyari: {gender_pref})" if gender_pref and gender_pref != "random" else ""
         await context.bot.send_message(
             chat_id=user_id,
-            text=f"🔎 <i>Lagi scanning{pref_text}... bentar lagi ketemu nih.</i>\n<b>{online}</b> orang online sekarang.\n\nKetik /stop untuk batalkan.",
+            text=f"🔎 <i>Lagi scanning{pref_text}... bentar lagi ketemu nih.</i>\n<b>{online}</b> orang online sekarang.\n\nKetik /stop untuk batalkan.\n💡 <i>Mau dinotif kalau ada yang nyari? Batalkan dulu lalu pilih 🔔</i>",
             parse_mode="HTML",
             reply_markup=ReplyKeyboardRemove()
         )
@@ -1858,7 +1858,7 @@ def main():
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(~filters.COMMAND, message))
 
-    app.post_init = notify_online
+    # app.post_init = notify_online    # notif bot nyala lagi
 
     logger.info("Bot started.")
     app.run_polling()
