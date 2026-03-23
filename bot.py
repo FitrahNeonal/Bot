@@ -374,18 +374,21 @@ def db_is_waiting(user_id: int) -> bool:
 def db_pop_any_waiting(exclude: int, gender_pref: str | None = None) -> int | None:
     """Ambil user dari waiting list. Kalau gender_pref diisi, filter by gender."""
     if gender_pref and gender_pref != "random":
-        # Cari yang gender-nya sesuai preferensi
         rows = execute_turso("""
             SELECT w.user_id FROM waiting_users w
             JOIN users u ON w.user_id = u.user_id
-            WHERE w.user_id != ? AND u.gender = ?
+            WHERE w.user_id != ?
+            AND u.gender = ?
+            AND w.user_id NOT IN (SELECT user_id FROM active_chats)
             ORDER BY w.joined_at LIMIT 1
         """, [exclude, gender_pref])
     else:
-        rows = execute_turso(
-            "SELECT user_id FROM waiting_users WHERE user_id != ? ORDER BY joined_at LIMIT 1",
-            [exclude]
-        )
+        rows = execute_turso("""
+            SELECT user_id FROM waiting_users
+            WHERE user_id != ?
+            AND user_id NOT IN (SELECT user_id FROM active_chats)
+            ORDER BY joined_at LIMIT 1
+        """, [exclude])
     if rows:
         partner = int(rows[0][0])
         execute_turso("DELETE FROM waiting_users WHERE user_id = ?", [partner])
@@ -1858,7 +1861,7 @@ def main():
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(~filters.COMMAND, message))
 
-    # app.post_init = notify_online    # notif bot nyala lagi
+    # app.post_init = notify_online
 
     logger.info("Bot started.")
     app.run_polling()
