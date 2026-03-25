@@ -948,8 +948,15 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Cek waiting broadcast dari admin
     if update.effective_user.id == ADMIN_ID and context.user_data.get("waiting_broadcast"):
+        if not update.message.text:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text="⚠️ Broadcast hanya bisa teks. Kirim pesan teks biasa."
+            )
+            return
         context.user_data["waiting_broadcast"] = False
-        pesan = update.message.text
+        from html import escape
+        pesan = escape(update.message.text)
         rows  = execute_turso("SELECT user_id FROM users WHERE banned = 0")
         success = 0
         for (user_id,) in rows:
@@ -960,8 +967,8 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     parse_mode="HTML"
                 )
                 success += 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Broadcast gagal ke %s: %s", user_id, e)
         await context.bot.send_message(
             chat_id=ADMIN_ID,
             text=f"✅ Broadcast selesai — {success}/{len(rows)} user berhasil."
