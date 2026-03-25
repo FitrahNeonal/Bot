@@ -1707,7 +1707,7 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             # Top umur
             umur_rows = execute_turso("SELECT umur, COUNT(*) as c FROM users WHERE umur IS NOT NULL GROUP BY umur ORDER BY c DESC")
-            umur_text = "  " + "  |  ".join([f"{r[0]}: <b>{r[1]}</b>" for r in umur_rows]) if umur_rows else "  belum ada data"
+            umur_text = "  " + "  |  ".join([f"{str(r[0]).replace('<', '&lt;').replace('>', '&gt;')}: <b>{r[1]}</b>" for r in umur_rows]) if umur_rows else "  belum ada data"
 
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
@@ -2250,7 +2250,7 @@ def main():
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(~filters.COMMAND, message))
 
-    app.post_init = notify_online
+    # app.post_init = notify_online
 
     logger.info("Bot started.")
     app.run_polling()
