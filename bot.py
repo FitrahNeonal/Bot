@@ -1685,49 +1685,53 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cmd = args[0].lower()
 
     if cmd == "stats":
-        import datetime
-        s             = db_get_stats()
-        total_refs    = int(execute_turso("SELECT COUNT(*) FROM referrals")[0][0] or 0)
-        total_reports = int(execute_turso("SELECT COUNT(*) FROM reports")[0][0] or 0)
-        total_banned  = int(execute_turso("SELECT COUNT(*) FROM users WHERE banned = 1")[0][0] or 0)
-        notify_count  = int(execute_turso("SELECT COUNT(*) FROM notify_list")[0][0] or 0)
+        try:
+            import datetime
+            s             = db_get_stats()
+            total_refs    = int(execute_turso("SELECT COUNT(*) FROM referrals")[0][0] or 0)
+            total_reports = int(execute_turso("SELECT COUNT(*) FROM reports")[0][0] or 0)
+            total_banned  = int(execute_turso("SELECT COUNT(*) FROM users WHERE banned = 1")[0][0] or 0)
+            notify_count  = int(execute_turso("SELECT COUNT(*) FROM notify_list")[0][0] or 0)
 
-        # User join 7 hari terakhir
-        week_ago = time.time() - 604800
-        new_users = int(execute_turso("SELECT COUNT(*) FROM users WHERE first_seen > ?", [week_ago])[0][0] or 0)
+            # User join 7 hari terakhir
+            week_ago = time.time() - 604800
+            new_users = int(execute_turso("SELECT COUNT(*) FROM users WHERE first_seen > ?", [week_ago])[0][0] or 0)
 
-        # Gender stats
-        gender_rows = execute_turso("SELECT gender, COUNT(*) FROM users WHERE gender IS NOT NULL GROUP BY gender ORDER BY 2 DESC")
-        gender_text = "  " + "  |  ".join([f"{r[0]}: <b>{r[1]}</b>" for r in gender_rows]) if gender_rows else "  belum ada data"
+            # Gender stats
+            gender_rows = execute_turso("SELECT gender, COUNT(*) FROM users WHERE gender IS NOT NULL GROUP BY gender ORDER BY 2 DESC")
+            gender_text = "  " + "  |  ".join([f"{r[0]}: <b>{r[1]}</b>" for r in gender_rows]) if gender_rows else "  belum ada data"
 
-        # Top kota
-        kota_rows = execute_turso("SELECT kota, COUNT(*) as c FROM users WHERE kota IS NOT NULL GROUP BY kota ORDER BY c DESC LIMIT 5")
-        kota_text = "\n".join([f"  {i+1}. {r[0]} — <b>{r[1]}</b>" for i, r in enumerate(kota_rows)]) or "  belum ada data"
+            # Top kota
+            kota_rows = execute_turso("SELECT kota, COUNT(*) as c FROM users WHERE kota IS NOT NULL GROUP BY kota ORDER BY c DESC LIMIT 5")
+            kota_text = "\n".join([f"  {i+1}. {r[0]} — <b>{r[1]}</b>" for i, r in enumerate(kota_rows)]) or "  belum ada data"
 
-        # Top umur
-        umur_rows = execute_turso("SELECT umur, COUNT(*) as c FROM users WHERE umur IS NOT NULL GROUP BY umur ORDER BY c DESC")
-        umur_text = "  " + "  |  ".join([f"{r[0]}: <b>{r[1]}</b>" for r in umur_rows]) if umur_rows else "  belum ada data"
+            # Top umur
+            umur_rows = execute_turso("SELECT umur, COUNT(*) as c FROM users WHERE umur IS NOT NULL GROUP BY umur ORDER BY c DESC")
+            umur_text = "  " + "  |  ".join([f"{r[0]}: <b>{r[1]}</b>" for r in umur_rows]) if umur_rows else "  belum ada data"
 
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=(
-                "📊 <b>Stats</b>\n"
-                "──────────────────\n"
-                f"👥 Total user: <b>{s['total']}</b>  (+{new_users} minggu ini)\n"
-                f"💬 Lagi chat: <b>{s['chatting']}</b> pasang\n"
-                f"🔎 Lagi waiting: <b>{s['waiting']}</b> orang\n"
-                f"🔔 Notify list: <b>{notify_count}</b> orang\n"
-                "──────────────────\n"
-                f"🔗 Total referral: <b>{total_refs}</b>\n"
-                f"🚩 Total report: <b>{total_reports}</b>\n"
-                f"🚫 Total banned: <b>{total_banned}</b>\n"
-                "──────────────────\n"
-                f"⚧ <b>Gender:</b>\n{gender_text}\n\n"
-                f"🎂 <b>Umur:</b>\n{umur_text}\n\n"
-                f"🗺️ <b>Top kota:</b>\n{kota_text}"
-            ),
-            parse_mode="HTML"
-        )
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=(
+                    "📊 <b>Stats</b>\n"
+                    "──────────────────\n"
+                    f"👥 Total user: <b>{s['total']}</b>  (+{new_users} minggu ini)\n"
+                    f"💬 Lagi chat: <b>{s['chatting']}</b> pasang\n"
+                    f"🔎 Lagi waiting: <b>{s['waiting']}</b> orang\n"
+                    f"🔔 Notify list: <b>{notify_count}</b> orang\n"
+                    "──────────────────\n"
+                    f"🔗 Total referral: <b>{total_refs}</b>\n"
+                    f"🚩 Total report: <b>{total_reports}</b>\n"
+                    f"🚫 Total banned: <b>{total_banned}</b>\n"
+                    "──────────────────\n"
+                    f"⚧ <b>Gender:</b>\n{gender_text}\n\n"
+                    f"🎂 <b>Umur:</b>\n{umur_text}\n\n"
+                    f"🗺️ <b>Top kota:</b>\n{kota_text}"
+                ),
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            logger.error("admin stats error: %s", e)
+            await context.bot.send_message(chat_id=ADMIN_ID, text=f"⚠️ Gagal ambil stats: <code>{e}</code>", parse_mode="HTML")
 
     elif cmd == "users":
         import datetime
@@ -2246,7 +2250,7 @@ def main():
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(~filters.COMMAND, message))
 
-    # app.post_init = notify_online
+    app.post_init = notify_online
 
     logger.info("Bot started.")
     app.run_polling()
