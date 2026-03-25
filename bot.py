@@ -308,9 +308,13 @@ def execute_turso(sql: str, params: list = None) -> list:
         data=data,
         headers={"Authorization": f"Bearer {TURSO_TOKEN}", "Content-Type": "application/json"}
     )
-    with urllib.request.urlopen(req) as res:
-        result = _json.loads(res.read())["results"][0]["response"]["result"]
-    return [[col.get("value") for col in row] for row in result["rows"]]
+    try:
+        with urllib.request.urlopen(req, timeout=10) as res:
+            result = _json.loads(res.read())["results"][0]["response"]["result"]
+        return [[col.get("value") for col in row] for row in result["rows"]]
+    except Exception as e:
+        logger.error("execute_turso error [%s]: %s", sql[:60], e)
+        raise
 
 def init_db():
     for sql in [
@@ -1654,7 +1658,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "4. Kalau mau ganti partner, pencet tombol ⏭ Skip\n\n"
             "<b>Setelah chat selesai:</b>\n"
             "Ada tombol 🔄 Hubungkan lagi — kalau mau balik ke partner yang sama, dua-duanya harus pencet. Berlaku 6 jam.\n\n"
-            "⚠️ Spam, konten dewasa, atau nyebarin info pribadi orang → langsung report. 3 report = auto-banned.\n\n"
+            "⚠️ Spam, konten dewasa, atau nyebarin info pribadi orang → langsung report. Laporan kamu akan ditinjau admin.\n\n"
             "———\n"
             "🐛 Ada bug atau pertanyaan?\n"
             "Join channel → @anonyneo\n"
@@ -2208,8 +2212,12 @@ async def done_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def notify_online(app):
-    # Notif yang lagi chat
-    chatting = execute_turso("SELECT DISTINCT user_id FROM active_chats")
+    try:
+        chatting = execute_turso("SELECT DISTINCT user_id FROM active_chats")
+    except Exception as e:
+        logger.error("notify_online: gagal ambil active_chats dari Turso: %s", e)
+        chatting = []
+
     for (user_id,) in chatting:
         try:
             await app.bot.send_message(
@@ -2220,9 +2228,14 @@ async def notify_online(app):
         except Exception:
             pass
 
-    # Notif yang lagi waiting, lalu bersihkan waiting list
-    waiting = execute_turso("SELECT user_id FROM waiting_users")
-    execute_turso("DELETE FROM waiting_users")
+    try:
+        waiting = execute_turso("SELECT user_id FROM waiting_users")
+    except Exception as e:
+        logger.error("notify_online: gagal ambil waiting_users dari Turso: %s", e)
+        waiting = []
+
+    # Notif dulu, baru hapus — supaya kalau ada error di tengah loop,
+    # waiting list tidak terlanjur terhapus sebelum semua user dinotif.
     for (user_id,) in waiting:
         try:
             await app.bot.send_message(
@@ -2232,6 +2245,12 @@ async def notify_online(app):
             )
         except Exception:
             pass
+
+    if waiting:
+        try:
+            execute_turso("DELETE FROM waiting_users")
+        except Exception as e:
+            logger.error("notify_online: gagal DELETE waiting_users: %s", e)
 
     logger.info("Notif startup: %d chatting, %d waiting dibersihkan.", len(chatting), len(waiting))
 
