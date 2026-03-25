@@ -26,7 +26,7 @@ ADMIN_ID       = 7396627060
 MSG_THRESHOLD  = 5
 TIME_THRESHOLD = 600
 RECONNECT_TTL  = 21600
-REPORT_LIMIT   = 3
+# REPORT_LIMIT dihapus — keputusan ban sekarang manual oleh admin
 STREAK_LIMIT   = 3
 
 # ─── UI ──────────────────────────────────────────────────────────────────────
@@ -308,9 +308,13 @@ def execute_turso(sql: str, params: list = None) -> list:
         data=data,
         headers={"Authorization": f"Bearer {TURSO_TOKEN}", "Content-Type": "application/json"}
     )
-    with urllib.request.urlopen(req) as res:
-        result = _json.loads(res.read())["results"][0]["response"]["result"]
-    return [[col.get("value") for col in row] for row in result["rows"]]
+    try:
+        with urllib.request.urlopen(req, timeout=10) as res:
+            result = _json.loads(res.read())["results"][0]["response"]["result"]
+        return [[col.get("value") for col in row] for row in result["rows"]]
+    except Exception as e:
+        logger.error("execute_turso error [%s]: %s", sql[:60], e)
+        raise
 
 def init_db():
     for sql in [
@@ -356,6 +360,13 @@ def init_db():
             partner_id INTEGER NOT NULL,
             requested_at REAL NOT NULL,
             PRIMARY KEY (user_id, partner_id))""",
+        """CREATE TABLE IF NOT EXISTS game_sessions (
+            user_id INTEGER PRIMARY KEY,
+            partner_id INTEGER NOT NULL,
+            question_id INTEGER NOT NULL,
+            answer TEXT DEFAULT NULL,
+            round INTEGER DEFAULT 1,
+            started_at REAL NOT NULL)""",
     ]:
         execute_turso(sql)
 
@@ -594,6 +605,24 @@ def db_clear_reconnect(user_a: int, user_b: int):
 # ─── Locks ───────────────────────────────────────────────────────────────────
 match_lock = asyncio.Lock()
 
+# ─── Chat Log (in-memory, maks 5 pesan terakhir per user) ────────────────────
+# Format: {user_id: [{"type": "text"/"photo"/etc, "text": "...", "from": user_id}]}
+chat_log: dict[int, list] = {}
+CHAT_LOG_MAX = 5
+
+def log_message(user_id: int, msg_type: str, content: str):
+    if user_id not in chat_log:
+        chat_log[user_id] = []
+    chat_log[user_id].append({"type": msg_type, "content": content})
+    if len(chat_log[user_id]) > CHAT_LOG_MAX:
+        chat_log[user_id].pop(0)
+
+def get_log(user_id: int) -> list:
+    return chat_log.get(user_id, [])
+
+def clear_log(user_id: int):
+    chat_log.pop(user_id, None)
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 async def _remove_inline_buttons(context, chat_id: int, message_id: int):
     try:
@@ -605,6 +634,8 @@ async def _remove_inline_buttons(context, chat_id: int, message_id: int):
 
 async def _force_disconnect(user_id: int, partner_id: int, context):
     db_remove_chat(user_id, partner_id)
+    clear_log(user_id)
+    clear_log(partner_id)
     try:
         await context.bot.send_message(
             chat_id=user_id,
@@ -697,6 +728,9 @@ async def _do_find(user_id: int, context, gender_pref: str | None = None):
         )
         # Schedule fallback ke random setelah 2 menit
         if gender_pref and gender_pref != "random":
+            # Batalkan job lama kalau ada, supaya tidak duplikat
+            for job in context.application.job_queue.get_jobs_by_name(f"fallback_{user_id}"):
+                job.schedule_removal()
             context.application.job_queue.run_once(
                 _fallback_to_random,
                 when=120,
@@ -732,6 +766,8 @@ async def _do_skip(user_id: int, context):
     partner = db_get_partner(user_id)
     if partner:
         db_remove_chat(user_id, partner)
+        clear_log(user_id)
+        clear_log(partner)
         streak = db_update_skip_streak(user_id)
         await context.bot.send_message(chat_id=user_id, text="🔎 <i>Oke, nyari yang baru...</i>", parse_mode="HTML")
         await context.bot.send_message(
@@ -759,6 +795,8 @@ async def _do_stop(user_id: int, context):
     duration = (time.time() - info["started_at"]) if info else 0
 
     db_remove_chat(user_id, partner)
+    clear_log(user_id)
+    clear_log(partner)
 
     # Hapus game kalau ada
     if db_get_game(user_id):
@@ -830,19 +868,46 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     s = db_get_stats()
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=(
-            "🎭 <b>Anonyneo</b>\n\n"
-            "Ngobrol sama orang asing. Anonim total.\n"
-            "Gak ada nama, gak ada akun, langsung match.\n\n"
-            f"👥 <b>{s['total']}</b> orang udah nyobain.\n"
-            f"💬 <b>{s['chatting']}</b> pasang lagi ngobrol sekarang.\n\n"
-            "Ketik /find buat mulai, atau /help buat panduan lengkap."
-        ),
-        parse_mode="HTML",
-        reply_markup=CARI_PARTNER
-    )
+
+    if is_new:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=(
+                "🎭 <b>Anonyneo</b>\n\n"
+                "Ngobrol anonim sama stranger. Ga ada nama, ga ada akun, ga ada jejak.\n"
+                "Cuma kamu, dia, dan obrolan yang (mungkin) lebih jujur dari biasanya.\n\n"
+                f"👥 <b>{s['total']}</b> orang udah nyobain.\n"
+                f"💬 <b>{s['chatting']}</b> pasang lagi ngobrol sekarang.\n\n"
+                "Siap? Ketik /find buat langsung nyari partner. 🚀"
+            ),
+            parse_mode="HTML",
+            reply_markup=CARI_PARTNER
+        )
+    else:
+        profile = db_get_profile(user_id)
+        total_chats = profile["total_chats"] if profile else 0
+
+        if total_chats == 0:
+            comeback_text = "Belum sempet ngobrol sama siapa-siapa nih. Yuk cobain sekarang! 👀"
+        elif total_chats < 5:
+            comeback_text = f"Udah {total_chats}x ngobrol sama stranger. Baru pemanasan nih. 🔥"
+        elif total_chats < 20:
+            comeback_text = f"<b>{total_chats} obrolan</b> dan balik lagi — kayaknya ketagihan. 😏"
+        else:
+            comeback_text = f"<b>{total_chats} obrolan</b>?? Kamu ini reguler sejati. 🏆"
+
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=(
+                f"👋 <b>Eh, balik lagi!</b>\n\n"
+                f"{comeback_text}\n\n"
+                f"💬 <b>{s['chatting']}</b> pasang lagi ngobrol sekarang.\n"
+                f"🔎 <b>{s['waiting']}</b> orang lagi nunggu partner.\n\n"
+                "Langsung /find aja? 🚀"
+            ),
+            parse_mode="HTML",
+            reply_markup=CARI_PARTNER
+        )
 
 
 async def find(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -932,6 +997,38 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await stats(update, context)
         return
 
+    # Handle forward bukti report
+    if context.user_data.get("waiting_evidence"):
+        pending = context.user_data.get("pending_report")
+        if not pending:
+            context.user_data["waiting_evidence"] = False
+            return
+        forwarded = update.message.forward_origin or update.message.forward_from
+        if forwarded or update.message.forward_date:
+            if "evidence_msgs" not in context.user_data:
+                context.user_data["evidence_msgs"] = []
+            context.user_data["evidence_msgs"].append(update.message.message_id)
+            count = len(context.user_data["evidence_msgs"])
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=f"✅ <i>{count} pesan diterima. Mau forward lagi atau udah?</i>",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("✅ Selesai kirim bukti", callback_data="report_done_evidence"),
+                ]])
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="⚠️ <i>Itu bukan pesan forward. Tahan pesan partner kamu → Teruskan → cari @anonyneo_bot → Kirim.</i>",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("✅ Selesai kirim bukti", callback_data="report_done_evidence"),
+                    InlineKeyboardButton("❌ Batalkan", callback_data="report_cancel_evidence"),
+                ]])
+            )
+        return
+
     partner = db_get_partner(user_id)
 
     if not partner:
@@ -943,6 +1040,23 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     db_increment_msg(user_id)
+
+    # Log pesan untuk keperluan report
+    msg = update.message
+    if msg.text:
+        log_message(user_id, "text", msg.text)
+    elif msg.photo:
+        log_message(user_id, "foto", "[foto]")
+    elif msg.sticker:
+        log_message(user_id, "stiker", msg.sticker.emoji or "[stiker]")
+    elif msg.voice:
+        log_message(user_id, "voice", "[pesan suara]")
+    elif msg.video:
+        log_message(user_id, "video", "[video]")
+    elif msg.document:
+        log_message(user_id, "file", f"[file: {msg.document.file_name or '?'}]")
+    else:
+        log_message(user_id, "lainnya", "[pesan]")
 
     try:
         await context.bot.copy_message(
@@ -1014,7 +1128,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     await _remove_inline_buttons(context, query.message.chat_id, query.message.message_id)
 
-    if data == "notify_yes":
+    # Game callbacks punya query.answer() sendiri di dalam _handle_game_callbacks
+    if data.startswith("game_"):
+        await _handle_game_callbacks(data, user_id, query, context)
+        return
         db_add_notify(user_id)
         await context.bot.send_message(
             chat_id=user_id,
@@ -1147,24 +1264,17 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reported_id = int(parts[3])
         except (IndexError, ValueError):
             return
-        total_reports = db_add_report(user_id, reported_id, reason)
-        await context.bot.send_message(chat_id=user_id, text="✅ <i>Laporan dikirim. Terima kasih!</i>", parse_mode="HTML")
-        logger.info("Report after: %s melaporkan %s (%s) — total: %d", user_id, reported_id, reason, total_reports)
-        try:
-            await context.bot.send_message(
-                chat_id=ADMIN_ID,
-                text=f"🚩 <b>Report baru</b>\nDari: <code>{user_id}</code>\nDilaporkan: <code>{reported_id}</code>\nAlasan: {reason}\nTotal report: {total_reports}",
-                parse_mode="HTML"
-            )
-        except TelegramError:
-            pass
-        if total_reports >= REPORT_LIMIT:
-            db_ban_user(reported_id)
-            await context.bot.send_message(chat_id=user_id, text="🚫 <i>User tersebut telah di-ban.</i>", parse_mode="HTML")
-            try:
-                await context.bot.send_message(chat_id=reported_id, text="🚫 <i>Akun kamu telah di-ban karena banyak laporan.</i>", parse_mode="HTML")
-            except TelegramError:
-                pass
+        # Simpan pending report, tawarin forward bukti
+        context.user_data["pending_report"] = {"reported_id": reported_id, "reason": reason}
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="✅ <i>Laporan dikirim. Makasih udah lapor!</i>\n\nMau kasih bukti percakapan ke admin?",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("📨 Forward bukti", callback_data="report_send_evidence"),
+                InlineKeyboardButton("⏭ Skip", callback_data="report_skip_evidence"),
+            ]])
+        )
         return
 
     if data in ("report_spam", "report_sange"):
@@ -1172,35 +1282,192 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not partner:
             await context.bot.send_message(chat_id=user_id, text="⚠️ <i>Kamu sudah tidak punya partner.</i>", parse_mode="HTML")
             return
-        reason        = "spam" if data == "report_spam" else "sange"
-        total_reports = db_add_report(user_id, partner, reason)
-        await context.bot.send_message(chat_id=user_id, text="✅ <i>Laporan dikirim. Terima kasih!</i>", parse_mode="HTML")
-        logger.info("Report: %s melaporkan %s (%s) — total: %d", user_id, partner, reason, total_reports)
-        try:
-            await context.bot.send_message(
-                chat_id=ADMIN_ID,
-                text=f"🚩 <b>Report baru</b>\nDari: <code>{user_id}</code>\nDilaporkan: <code>{partner}</code>\nAlasan: {reason}\nTotal report: {total_reports}",
-                parse_mode="HTML"
-            )
-        except TelegramError:
-            pass
-        if total_reports >= REPORT_LIMIT:
-            db_ban_user(partner)
-            db_remove_chat(user_id, partner)
+        reason = "spam" if data == "report_spam" else "sange"
+        context.user_data["pending_report"] = {"reported_id": partner, "reason": reason}
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="✅ <i>Laporan dikirim. Makasih udah lapor!</i>\n\nMau kasih bukti percakapan ke admin?",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("📨 Forward bukti", callback_data="report_send_evidence"),
+                InlineKeyboardButton("⏭ Skip", callback_data="report_skip_evidence"),
+            ]])
+        )
+        return
+
+    if data == "report_send_evidence":
+        pending = context.user_data.get("pending_report")
+        if not pending:
+            await context.bot.send_message(chat_id=user_id, text="⚠️ <i>Sesi laporan sudah tidak aktif.</i>", parse_mode="HTML")
+            return
+        if context.user_data.get("waiting_evidence"):
+            # Sudah aktif, jangan reset — cukup ingatkan
             await context.bot.send_message(
                 chat_id=user_id,
-                text="🚫 <i>Partner kamu telah di-ban. Kamu diputuskan dari chat ini.</i>",
-                parse_mode="HTML",
-                reply_markup=btn_find_again()
+                text="📨 <i>Kamu sudah dalam mode kirim bukti. Forward pesan atau ketik /done.</i>",
+                parse_mode="HTML"
             )
+            return
+        context.user_data["waiting_evidence"] = True
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=(
+                "📨 <b>Cara kirim bukti:</b>\n\n"
+                "Teruskan/forward pesan mencurigakan dari partner kamu ke bot ini <b>(@anonyneo_bot)</b>.\n\n"
+                "Caranya: <i>tahan pesan → Teruskan → cari @anonyneo_bot → Kirim.</i>\n\n"
+                "Bisa forward berapa aja. Kalau udah, ketik /done atau pencet tombol selesai.\n\n"
+                "Bingung? Ya udah gapapa, ketik /done aja langsung. Dasar oon 🙃"
+            ),
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("❌ Batalkan", callback_data="report_cancel_evidence"),
+            ]])
+        )
+        return
+
+    if data == "report_done_evidence":
+        if not context.user_data.get("waiting_evidence"):
+            return
+        await _send_report_with_evidence(user_id, context)
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="✅ <i>Bukti dikirim ke admin. Makasih udah lapor!</i>",
+            parse_mode="HTML"
+        )
+        return
+
+    if data == "report_cancel_evidence":
+        pending = context.user_data.get("pending_report")
+        context.user_data["waiting_evidence"] = False
+        context.user_data.pop("pending_report", None)
+        context.user_data.pop("evidence_msgs", None)
+        if pending:
+            reported_id   = pending["reported_id"]
+            reason        = pending["reason"]
+            total_reports = db_add_report(user_id, reported_id, reason)
+            logs          = get_log(reported_id)
+            log_text      = "\n".join([f"  [{m['type']}] {m['content']}" for m in logs]) if logs else "  (tidak ada log)"
             try:
                 await context.bot.send_message(
-                    chat_id=partner,
-                    text="🚫 <i>Akun kamu telah di-ban karena banyak laporan dari pengguna lain.</i>",
-                    parse_mode="HTML"
+                    chat_id=ADMIN_ID,
+                    text=(
+                        f"🚩 <b>Report Baru</b>\n\n"
+                        f"👤 Pelapor: <code>{user_id}</code>\n"
+                        f"🎯 Dilaporkan: <code>{reported_id}</code>\n"
+                        f"📌 Alasan: <b>{reason}</b>\n"
+                        f"📊 Total report: <b>{total_reports}</b>\n\n"
+                        f"📋 <b>5 pesan terakhir si dilaporkan:</b>\n{log_text}\n\nAksi:"
+                    ),
+                    parse_mode="HTML",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🚫 Ban", callback_data=f"admin_ban_{reported_id}"),
+                        InlineKeyboardButton("✅ Abaikan", callback_data=f"admin_ignore_{reported_id}"),
+                    ]])
                 )
             except TelegramError:
                 pass
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="✅ <i>Laporan terkirim tanpa bukti. Makasih!</i>",
+            parse_mode="HTML"
+        )
+        return
+
+    if data == "report_skip_evidence":
+        pending = context.user_data.get("pending_report")
+        if not pending:
+            return
+        reported_id = pending["reported_id"]
+        reason      = pending["reason"]
+        context.user_data.pop("pending_report", None)
+        total_reports = db_add_report(user_id, reported_id, reason)
+        logger.info("Report: %s melaporkan %s (%s) — total: %d", user_id, reported_id, reason, total_reports)
+        # Kirim log otomatis ke admin
+        logs = get_log(reported_id)
+        log_text = "\n".join([f"  [{m['type']}] {m['content']}" for m in logs]) if logs else "  (tidak ada log)"
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=(
+                    f"🚩 <b>Report Baru</b>\n\n"
+                    f"👤 Pelapor: <code>{user_id}</code>\n"
+                    f"🎯 Dilaporkan: <code>{reported_id}</code>\n"
+                    f"📌 Alasan: <b>{reason}</b>\n"
+                    f"📊 Total report: <b>{total_reports}</b>\n\n"
+                    f"📋 <b>5 pesan terakhir si dilaporkan:</b>\n{log_text}\n\nAksi:"
+                ),
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🚫 Ban", callback_data=f"admin_ban_{reported_id}"),
+                    InlineKeyboardButton("✅ Abaikan", callback_data=f"admin_ignore_{reported_id}"),
+                ]])
+            )
+        except TelegramError:
+            pass
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="✅ <i>Laporan terkirim. Makasih udah lapor!</i>",
+            parse_mode="HTML"
+        )
+        return
+
+    if data.startswith("admin_ban_"):
+        if user_id != ADMIN_ID:
+            return
+        try:
+            target_id = int(data.split("admin_ban_")[1])
+        except (IndexError, ValueError):
+            return
+        db_ban_user(target_id)
+        # Putuskan dari chat kalau lagi aktif
+        partner = db_get_partner(target_id)
+        if partner:
+            db_remove_chat(target_id, partner)
+            clear_log(target_id)
+            clear_log(partner)
+            try:
+                await context.bot.send_message(chat_id=partner, text="⚠️ <i>Partner kamu diputus karena melanggar aturan.</i>", parse_mode="HTML", reply_markup=btn_find_again())
+            except TelegramError:
+                pass
+        try:
+            await context.bot.send_message(chat_id=target_id, text="🚫 <i>Akun kamu telah di-ban karena melanggar aturan.</i>", parse_mode="HTML")
+        except TelegramError:
+            pass
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+            await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ User <code>{target_id}</code> berhasil di-ban.", parse_mode="HTML")
+        except TelegramError:
+            pass
+        return
+
+    if data.startswith("admin_ignore_"):
+        if user_id != ADMIN_ID:
+            return
+        try:
+            target_id = int(data.split("admin_ignore_")[1])
+        except (IndexError, ValueError):
+            return
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+            await context.bot.send_message(chat_id=ADMIN_ID, text=f"👍 Report untuk <code>{target_id}</code> diabaikan.", parse_mode="HTML")
+        except TelegramError:
+            pass
+        return
+
+    if data.startswith("admin_unban_"):
+        if user_id != ADMIN_ID:
+            return
+        try:
+            target_id = int(data.split("admin_unban_")[1])
+        except (IndexError, ValueError):
+            return
+        execute_turso("UPDATE users SET banned = 0 WHERE user_id = ?", [target_id])
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+            await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ User <code>{target_id}</code> berhasil di-unban.", parse_mode="HTML")
+            await context.bot.send_message(chat_id=target_id, text="✅ <i>Akun kamu sudah di-unban. Selamat datang kembali!</i>", parse_mode="HTML")
+        except TelegramError:
+            pass
         return
 
     if data.startswith("reconnect_"):
@@ -1351,11 +1618,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ── Game callbacks ────────────────────────────────────────────
-    if data.startswith("game_"):
-        await _handle_game_callbacks(data, user_id, query, context)
-        return
-
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     s = db_get_stats()
@@ -1432,9 +1694,12 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=ADMIN_ID,
             text=(
                 "🛠 <b>Admin Panel</b>\n\n"
-                "/admin stats — statistik lengkap\n"
-                "/admin users — user terbaru\n"
-                "/admin broadcast &lt;pesan&gt; — kirim pesan ke semua user"
+                "📊 /admin stats — statistik lengkap\n"
+                "👥 /admin users — 20 user terbaru\n"
+                "🚩 /admin reports — daftar report pending\n"
+                "🚫 /admin banned — daftar user banned\n"
+                "🔓 /admin unban &lt;user_id&gt; — unban user\n"
+                "📢 /admin broadcast — kirim pesan ke semua user"
             ),
             parse_mode="HTML"
         )
@@ -1443,52 +1708,111 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cmd = args[0].lower()
 
     if cmd == "stats":
+        import datetime
         s             = db_get_stats()
         total_refs    = int(execute_turso("SELECT COUNT(*) FROM referrals")[0][0] or 0)
         total_reports = int(execute_turso("SELECT COUNT(*) FROM reports")[0][0] or 0)
         total_banned  = int(execute_turso("SELECT COUNT(*) FROM users WHERE banned = 1")[0][0] or 0)
+        notify_count  = int(execute_turso("SELECT COUNT(*) FROM notify_list")[0][0] or 0)
+
+        # User join 7 hari terakhir
+        week_ago = time.time() - 604800
+        new_users = int(execute_turso("SELECT COUNT(*) FROM users WHERE first_seen > ?", [week_ago])[0][0] or 0)
 
         # Gender stats
-        gender_rows = execute_turso("SELECT gender, COUNT(*) FROM users WHERE gender IS NOT NULL GROUP BY gender")
-        gender_text = "\n".join([f"  {r[0]}: {r[1]}" for r in gender_rows]) or "  belum ada data"
+        gender_rows = execute_turso("SELECT gender, COUNT(*) FROM users WHERE gender IS NOT NULL GROUP BY gender ORDER BY 2 DESC")
+        gender_text = "  " + "  |  ".join([f"{r[0]}: <b>{r[1]}</b>" for r in gender_rows]) if gender_rows else "  belum ada data"
 
         # Top kota
         kota_rows = execute_turso("SELECT kota, COUNT(*) as c FROM users WHERE kota IS NOT NULL GROUP BY kota ORDER BY c DESC LIMIT 5")
-        kota_text = "\n".join([f"  {r[0]}: {r[1]}" for r in kota_rows]) or "  belum ada data"
+        kota_text = "\n".join([f"  {i+1}. {r[0]} — <b>{r[1]}</b>" for i, r in enumerate(kota_rows)]) or "  belum ada data"
+
+        # Top umur
+        umur_rows = execute_turso("SELECT umur, COUNT(*) as c FROM users WHERE umur IS NOT NULL GROUP BY umur ORDER BY c DESC")
+        umur_text = "  " + "  |  ".join([f"{r[0]}: <b>{r[1]}</b>" for r in umur_rows]) if umur_rows else "  belum ada data"
 
         await context.bot.send_message(
             chat_id=ADMIN_ID,
             text=(
-                "📊 <b>Admin Stats</b>\n\n"
-                f"👥 Total user: <b>{s['total']}</b>\n"
+                "📊 <b>Stats</b>\n"
+                "──────────────────\n"
+                f"👥 Total user: <b>{s['total']}</b>  (+{new_users} minggu ini)\n"
                 f"💬 Lagi chat: <b>{s['chatting']}</b> pasang\n"
                 f"🔎 Lagi waiting: <b>{s['waiting']}</b> orang\n"
+                f"🔔 Notify list: <b>{notify_count}</b> orang\n"
+                "──────────────────\n"
                 f"🔗 Total referral: <b>{total_refs}</b>\n"
                 f"🚩 Total report: <b>{total_reports}</b>\n"
-                f"🚫 Total banned: <b>{total_banned}</b>\n\n"
+                f"🚫 Total banned: <b>{total_banned}</b>\n"
+                "──────────────────\n"
                 f"⚧ <b>Gender:</b>\n{gender_text}\n\n"
+                f"🎂 <b>Umur:</b>\n{umur_text}\n\n"
                 f"🗺️ <b>Top kota:</b>\n{kota_text}"
             ),
             parse_mode="HTML"
         )
 
     elif cmd == "users":
+        import datetime
         rows = execute_turso(
-            "SELECT user_id, first_seen, referred_by FROM users ORDER BY first_seen DESC LIMIT 20"
+            "SELECT user_id, first_seen, referred_by, total_chats FROM users ORDER BY first_seen DESC LIMIT 20"
         )
         if not rows:
             await context.bot.send_message(chat_id=ADMIN_ID, text="Belum ada user.")
             return
         lines = ["👥 <b>20 User Terbaru</b>\n"]
-        for user_id, first_seen, referred_by in rows:
-            import datetime
+        for uid, first_seen, referred_by, total_chats in rows:
             try:
                 tgl = datetime.datetime.fromtimestamp(float(first_seen)).strftime("%d/%m %H:%M")
             except (TypeError, ValueError):
                 tgl = "?"
-            ref = f" (ref: {referred_by})" if referred_by else ""
-            lines.append(f"• <code>{user_id}</code>{ref} — {tgl}")
+            ref  = f" · ref: {referred_by}" if referred_by else ""
+            chat = f" · {total_chats}x chat" if total_chats else ""
+            lines.append(f"• <code>{uid}</code>{ref}{chat} — {tgl}")
         await context.bot.send_message(chat_id=ADMIN_ID, text="\n".join(lines), parse_mode="HTML")
+
+    elif cmd == "reports":
+        rows = execute_turso(
+            "SELECT reported_id, COUNT(*) as c, GROUP_CONCAT(DISTINCT reason) FROM reports GROUP BY reported_id ORDER BY c DESC LIMIT 20"
+        )
+        if not rows:
+            await context.bot.send_message(chat_id=ADMIN_ID, text="✅ Tidak ada report.")
+            return
+        lines = ["🚩 <b>Report Pending</b>\n"]
+        for reported_id, count, reasons in rows:
+            is_banned = db_is_banned(int(reported_id))
+            status = " 🚫 <i>(banned)</i>" if is_banned else ""
+            lines.append(f"• <code>{reported_id}</code> — <b>{count}x</b> ({reasons}){status}")
+        await context.bot.send_message(chat_id=ADMIN_ID, text="\n".join(lines), parse_mode="HTML")
+
+    elif cmd == "banned":
+        rows = execute_turso("SELECT user_id FROM users WHERE banned = 1")
+        if not rows:
+            await context.bot.send_message(chat_id=ADMIN_ID, text="✅ Tidak ada user yang di-ban.")
+            return
+        lines = ["🚫 <b>Banned Users</b>\n"]
+        for (uid,) in rows:
+            lines.append(
+                f"• <code>{uid}</code>"
+            )
+        lines.append("\n<i>Gunakan /admin unban &lt;user_id&gt; untuk unban.</i>")
+        await context.bot.send_message(chat_id=ADMIN_ID, text="\n".join(lines), parse_mode="HTML")
+
+    elif cmd == "unban":
+        if len(args) < 2:
+            await context.bot.send_message(chat_id=ADMIN_ID, text="⚠️ Format: /admin unban &lt;user_id&gt;", parse_mode="HTML")
+            return
+        try:
+            target_id = int(args[1])
+        except ValueError:
+            await context.bot.send_message(chat_id=ADMIN_ID, text="⚠️ user_id harus angka.")
+            return
+        execute_turso("UPDATE users SET banned = 0 WHERE user_id = ?", [target_id])
+        try:
+            await context.bot.send_message(chat_id=target_id, text="✅ <i>Akun kamu sudah di-unban. Selamat datang kembali!</i>", parse_mode="HTML")
+        except TelegramError:
+            pass
+        await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ User <code>{target_id}</code> berhasil di-unban.", parse_mode="HTML")
 
     elif cmd == "broadcast":
         context.user_data["waiting_broadcast"] = True
@@ -1827,9 +2151,82 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
         return
 
 
+async def _send_report_with_evidence(user_id: int, context):
+    pending = context.user_data.get("pending_report")
+    if not pending:
+        return
+    reported_id   = pending["reported_id"]
+    reason        = pending["reason"]
+    evidence_msgs = context.user_data.get("evidence_msgs", [])
+    context.user_data["waiting_evidence"] = False
+    context.user_data.pop("pending_report", None)
+    context.user_data.pop("evidence_msgs", None)
+
+    total_reports = db_add_report(user_id, reported_id, reason)
+    logger.info("Report+evidence: %s melaporkan %s (%s) — total: %d", user_id, reported_id, reason, total_reports)
+
+    logs = get_log(reported_id)
+    log_text = "\n".join([f"  [{m['type']}] {m['content']}" for m in logs]) if logs else "  (tidak ada log)"
+
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=(
+                f"🚩 <b>Report Baru + Bukti</b>\n\n"
+                f"👤 Pelapor: <code>{user_id}</code>\n"
+                f"🎯 Dilaporkan: <code>{reported_id}</code>\n"
+                f"📌 Alasan: <b>{reason}</b>\n"
+                f"📊 Total report: <b>{total_reports}</b>\n\n"
+                f"📋 <b>5 pesan terakhir si dilaporkan:</b>\n{log_text}\n\n"
+                f"📨 <b>Bukti dari pelapor ({len(evidence_msgs)} pesan):</b>"
+            ),
+            parse_mode="HTML"
+        )
+        for msg_id in evidence_msgs:
+            try:
+                await context.bot.forward_message(
+                    chat_id=ADMIN_ID,
+                    from_chat_id=user_id,
+                    message_id=msg_id
+                )
+            except TelegramError:
+                pass
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text="Aksi:",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🚫 Ban", callback_data=f"admin_ban_{reported_id}"),
+                InlineKeyboardButton("✅ Abaikan", callback_data=f"admin_ignore_{reported_id}"),
+            ]])
+        )
+    except TelegramError:
+        pass
+
+async def done_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if context.user_data.get("waiting_evidence"):
+        await _send_report_with_evidence(user_id, context)
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="✅ <i>Laporan selesai. Makasih udah lapor!</i>",
+            parse_mode="HTML"
+        )
+    else:
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="⚠️ <i>Ga ada yang lagi diproses.</i>",
+            parse_mode="HTML"
+        )
+
+
 async def notify_online(app):
-    rows = execute_turso("SELECT DISTINCT user_id FROM active_chats")
-    for (user_id,) in rows:
+    try:
+        chatting = execute_turso("SELECT DISTINCT user_id FROM active_chats")
+    except Exception as e:
+        logger.error("notify_online: gagal ambil active_chats dari Turso: %s", e)
+        chatting = []
+
+    for (user_id,) in chatting:
         try:
             await app.bot.send_message(
                 chat_id=user_id,
@@ -1838,7 +2235,32 @@ async def notify_online(app):
             )
         except Exception:
             pass
-    logger.info("Notif startup dikirim ke %d user.", len(rows))
+
+    try:
+        waiting = execute_turso("SELECT user_id FROM waiting_users")
+    except Exception as e:
+        logger.error("notify_online: gagal ambil waiting_users dari Turso: %s", e)
+        waiting = []
+
+    # Notif dulu, baru hapus — supaya kalau di tengah loop ada error,
+    # waiting list tidak terlanjur terhapus sebelum semua user dinotif.
+    for (user_id,) in waiting:
+        try:
+            await app.bot.send_message(
+                chat_id=user_id,
+                text="✅ <i>Bot udah nyala lagi! Pencarian sebelumnya dibatalkan — pakai /find untuk mulai lagi ya.</i>",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
+    if waiting:
+        try:
+            execute_turso("DELETE FROM waiting_users")
+        except Exception as e:
+            logger.error("notify_online: gagal DELETE waiting_users: %s", e)
+
+    logger.info("Notif startup: %d chatting, %d waiting dibersihkan.", len(chatting), len(waiting))
 
 
 def main():
@@ -1857,11 +2279,12 @@ def main():
     app.add_handler(CommandHandler("stop", stop))
     app.add_handler(CommandHandler("game", game))
     app.add_handler(CommandHandler("cancel", cancel))
+    app.add_handler(CommandHandler("done", done_command))
     app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(~filters.COMMAND, message))
 
-    # app.post_init = notify_online
+    app.post_init = notify_online
 
     logger.info("Bot started.")
     app.run_polling()
