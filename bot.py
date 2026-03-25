@@ -308,13 +308,9 @@ def execute_turso(sql: str, params: list = None) -> list:
         data=data,
         headers={"Authorization": f"Bearer {TURSO_TOKEN}", "Content-Type": "application/json"}
     )
-    try:
-        with urllib.request.urlopen(req, timeout=10) as res:
-            result = _json.loads(res.read())["results"][0]["response"]["result"]
-        return [[col.get("value") for col in row] for row in result["rows"]]
-    except Exception as e:
-        logger.error("execute_turso error [%s]: %s", sql[:60], e)
-        raise
+    with urllib.request.urlopen(req) as res:
+        result = _json.loads(res.read())["results"][0]["response"]["result"]
+    return [[col.get("value") for col in row] for row in result["rows"]]
 
 def init_db():
     for sql in [
@@ -728,9 +724,6 @@ async def _do_find(user_id: int, context, gender_pref: str | None = None):
         )
         # Schedule fallback ke random setelah 2 menit
         if gender_pref and gender_pref != "random":
-            # Batalkan job lama kalau ada, supaya tidak duplikat
-            for job in context.application.job_queue.get_jobs_by_name(f"fallback_{user_id}"):
-                job.schedule_removal()
             context.application.job_queue.run_once(
                 _fallback_to_random,
                 when=120,
@@ -1003,30 +996,18 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not pending:
             context.user_data["waiting_evidence"] = False
             return
-        forwarded = update.message.forward_origin or update.message.forward_from
-        if forwarded or update.message.forward_date:
-            if "evidence_msgs" not in context.user_data:
-                context.user_data["evidence_msgs"] = []
-            context.user_data["evidence_msgs"].append(update.message.message_id)
-            count = len(context.user_data["evidence_msgs"])
-            await context.bot.send_message(
-                chat_id=user_id,
-                text=f"✅ <i>{count} pesan diterima. Mau forward lagi atau udah?</i>",
-                parse_mode="HTML",
-                reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("✅ Selesai kirim bukti", callback_data="report_done_evidence"),
-                ]])
-            )
-        else:
-            await context.bot.send_message(
-                chat_id=user_id,
-                text="⚠️ <i>Itu bukan pesan forward. Tahan pesan partner kamu → Teruskan → cari @anonyneo_bot → Kirim.</i>",
-                parse_mode="HTML",
-                reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("✅ Selesai kirim bukti", callback_data="report_done_evidence"),
-                    InlineKeyboardButton("❌ Batalkan", callback_data="report_cancel_evidence"),
-                ]])
-            )
+        if "evidence_msgs" not in context.user_data:
+            context.user_data["evidence_msgs"] = []
+        context.user_data["evidence_msgs"].append(update.message.message_id)
+        count = len(context.user_data["evidence_msgs"])
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=f"✅ <i>{count} pesan diterima. Mau kirim lagi atau udah?</i>",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("✅ Selesai kirim bukti", callback_data="report_done_evidence"),
+            ]])
+        )
         return
 
     partner = db_get_partner(user_id)
@@ -1128,10 +1109,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     await _remove_inline_buttons(context, query.message.chat_id, query.message.message_id)
 
-    # Game callbacks punya query.answer() sendiri di dalam _handle_game_callbacks
-    if data.startswith("game_"):
-        await _handle_game_callbacks(data, user_id, query, context)
-        return
+    if data == "notify_yes":
         db_add_notify(user_id)
         await context.bot.send_message(
             chat_id=user_id,
@@ -1313,9 +1291,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=user_id,
             text=(
                 "📨 <b>Cara kirim bukti:</b>\n\n"
-                "Teruskan/forward pesan mencurigakan dari partner kamu ke bot ini <b>(@anonyneo_bot)</b>.\n\n"
-                "Caranya: <i>tahan pesan → Teruskan → cari @anonyneo_bot → Kirim.</i>\n\n"
-                "Bisa forward berapa aja. Kalau udah, ketik /done atau pencet tombol selesai.\n\n"
+                "Kirim screenshot atau pesan apapun sebagai bukti ke bot ini.\n\n"
+                "Bisa kirim berapa aja. Kalau udah, ketik /done atau pencet tombol selesai.\n\n"
                 "Bingung? Ya udah gapapa, ketik /done aja langsung. Dasar oon 🙃"
             ),
             parse_mode="HTML",
@@ -1404,11 +1381,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         except TelegramError:
             pass
-        await context.bot.send_message(
-            chat_id=user_id,
-            text="✅ <i>Laporan terkirim. Makasih udah lapor!</i>",
-            parse_mode="HTML"
-        )
         return
 
     if data.startswith("admin_ban_"):
@@ -1616,6 +1588,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="🎂 Umur kamu? (opsional)",
             reply_markup=btn_umur()
         )
+        return
+
+    # ── Game callbacks ────────────────────────────────────────────
+    if data.startswith("game_"):
+        await _handle_game_callbacks(data, user_id, query, context)
         return
 
 
@@ -2151,7 +2128,7 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
         return
 
 
-async def _send_report_with_evidence(user_id: int, context):
+async def _send_report_with_evidence(user_id: int, context, update=None):
     pending = context.user_data.get("pending_report")
     if not pending:
         return
@@ -2220,12 +2197,8 @@ async def done_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def notify_online(app):
-    try:
-        chatting = execute_turso("SELECT DISTINCT user_id FROM active_chats")
-    except Exception as e:
-        logger.error("notify_online: gagal ambil active_chats dari Turso: %s", e)
-        chatting = []
-
+    # Notif yang lagi chat
+    chatting = execute_turso("SELECT DISTINCT user_id FROM active_chats")
     for (user_id,) in chatting:
         try:
             await app.bot.send_message(
@@ -2236,14 +2209,9 @@ async def notify_online(app):
         except Exception:
             pass
 
-    try:
-        waiting = execute_turso("SELECT user_id FROM waiting_users")
-    except Exception as e:
-        logger.error("notify_online: gagal ambil waiting_users dari Turso: %s", e)
-        waiting = []
-
-    # Notif dulu, baru hapus — supaya kalau di tengah loop ada error,
-    # waiting list tidak terlanjur terhapus sebelum semua user dinotif.
+    # Notif yang lagi waiting, lalu bersihkan waiting list
+    waiting = execute_turso("SELECT user_id FROM waiting_users")
+    execute_turso("DELETE FROM waiting_users")
     for (user_id,) in waiting:
         try:
             await app.bot.send_message(
@@ -2253,12 +2221,6 @@ async def notify_online(app):
             )
         except Exception:
             pass
-
-    if waiting:
-        try:
-            execute_turso("DELETE FROM waiting_users")
-        except Exception as e:
-            logger.error("notify_online: gagal DELETE waiting_users: %s", e)
 
     logger.info("Notif startup: %d chatting, %d waiting dibersihkan.", len(chatting), len(waiting))
 
@@ -2284,7 +2246,7 @@ def main():
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(~filters.COMMAND, message))
 
-    app.post_init = notify_online
+    # app.post_init = notify_online
 
     logger.info("Bot started.")
     app.run_polling()
