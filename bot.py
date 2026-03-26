@@ -320,6 +320,7 @@ CARI_PARTNER = ReplyKeyboardMarkup(
     input_field_placeholder="🚀 Cari partner"
 )
 
+# ─── UI Buttons ───────────────────────────────────────────────────────────────
 def btn_game_invite():
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ Mau!", callback_data="game_accept"),
@@ -487,7 +488,7 @@ def btn_skip_umur():
         InlineKeyboardButton("⏭ Lewati", callback_data="skip_umur")
     ]])
 
-# ─── Database ────────────────────────────────────────────────────────────────
+# ─── Database ─────────────────────────────────────────────────────────────────
 def execute_turso(sql: str, params: list = None) -> list:
     import urllib.request, json as _json
     stmt = {"sql": sql}
@@ -659,7 +660,8 @@ def db_needs_confirmation(user_id: int) -> bool:
     info = db_get_chat_info(user_id)
     if not info:
         return False
-    return info["msg_count"] >= MSG_THRESHOLD or (time.time() - info["started_at"]) >= TIME_THRESHOLD
+    real_count = info["msg_count"] + MSG_BUFFER.get(user_id, 0)
+    return real_count >= MSG_THRESHOLD or (time.time() - info["started_at"]) >= TIME_THRESHOLD
 
 def db_get_stats() -> dict:
     waiting  = int(execute_turso("SELECT COUNT(*) FROM waiting_users")[0][0] or 0)
@@ -883,6 +885,10 @@ def db_clear_reconnect(user_a: int, user_b: int):
 # ─── Locks ───────────────────────────────────────────────────────────────────
 match_lock = asyncio.Lock()
 
+# ─── Message Buffer (reduce DB spam) ─────────────────────────────────────────
+MSG_BUFFER: dict[int, int] = {}
+MSG_BUFFER_LIMIT = 3
+
 # ─── Chat Log (in-memory, maks 5 pesan terakhir per user) ────────────────────
 # Format: {user_id: [{"type": "text"/"photo"/etc, "text": "...", "from": user_id}]}
 chat_log: dict[int, list] = {}
@@ -901,6 +907,33 @@ def get_log(user_id: int) -> list:
 def clear_log(user_id: int):
     chat_log.pop(user_id, None)
 
+def buffer_increment_msg(user_id: int):
+    """Tambah counter pesan di memory. Flush ke DB tiap MSG_BUFFER_LIMIT pesan."""
+    MSG_BUFFER[user_id] = MSG_BUFFER.get(user_id, 0) + 1
+    if MSG_BUFFER[user_id] >= MSG_BUFFER_LIMIT:
+        execute_turso(
+            "UPDATE active_chats SET msg_count = msg_count + ? WHERE user_id = ?",
+            [MSG_BUFFER[user_id], user_id]
+        )
+        db_update_last_active(user_id)
+        MSG_BUFFER[user_id] = 0
+
+def flush_msg_buffer(user_id: int):
+    """Flush sisa buffer ke DB — dipanggil saat stop/skip/disconnect."""
+    count = MSG_BUFFER.get(user_id, 0)
+    if count > 0:
+        execute_turso(
+            "UPDATE active_chats SET msg_count = msg_count + ? WHERE user_id = ?",
+            [count, user_id]
+        )
+        db_update_last_active(user_id)
+        MSG_BUFFER[user_id] = 0
+
+def cleanup_user(user_id: int):
+    """Bersihkan semua state in-memory user. Selalu panggil flush dulu sebelum ini."""
+    MSG_BUFFER.pop(user_id, None)
+    chat_log.pop(user_id, None)
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 async def _remove_inline_buttons(context, chat_id: int, message_id: int):
     try:
@@ -911,9 +944,11 @@ async def _remove_inline_buttons(context, chat_id: int, message_id: int):
         pass
 
 async def _force_disconnect(user_id: int, partner_id: int, context):
+    flush_msg_buffer(user_id)
+    flush_msg_buffer(partner_id)
     db_remove_chat(user_id, partner_id)
-    clear_log(user_id)
-    clear_log(partner_id)
+    cleanup_user(user_id)
+    cleanup_user(partner_id)
     try:
         await context.bot.send_message(
             chat_id=user_id,
@@ -924,6 +959,7 @@ async def _force_disconnect(user_id: int, partner_id: int, context):
     except TelegramError:
         pass
 
+# ─── Core Matchmaking ─────────────────────────────────────────────────────────
 async def _do_find(user_id: int, context, gender_pref: str | None = None):
     if db_is_banned(user_id):
         await context.bot.send_message(
@@ -1043,9 +1079,11 @@ async def _fallback_to_random(context):
 async def _do_skip(user_id: int, context):
     partner = db_get_partner(user_id)
     if partner:
+        flush_msg_buffer(user_id)
+        flush_msg_buffer(partner)
         db_remove_chat(user_id, partner)
-        clear_log(user_id)
-        clear_log(partner)
+        cleanup_user(user_id)
+        cleanup_user(partner)
 
         # Hapus CR kalau ada
         if db_get_cr(user_id):
@@ -1093,9 +1131,11 @@ async def _do_stop(user_id: int, context):
     info = db_get_chat_info(user_id)
     duration = (time.time() - info["started_at"]) if info else 0
 
+    flush_msg_buffer(user_id)
+    flush_msg_buffer(partner)
     db_remove_chat(user_id, partner)
-    clear_log(user_id)
-    clear_log(partner)
+    cleanup_user(user_id)
+    cleanup_user(partner)
 
     # Hapus CR kalau ada
     if db_get_cr(user_id):
@@ -1154,7 +1194,7 @@ async def _do_stop(user_id: int, context):
         reply_markup=CARI_PARTNER
     )
 
-# ─── Handlers ────────────────────────────────────────────────────────────────
+# ─── Handlers ─────────────────────────────────────────────────────────────────
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     referred_by = None
@@ -1347,7 +1387,7 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    db_increment_msg(user_id)
+    buffer_increment_msg(user_id)
 
     # Log pesan untuk keperluan report
     msg = update.message
@@ -2351,6 +2391,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+# ─── Game: Would You Rather ────────────────────────────────────────────────────
 async def _send_game_question(bot, user_id: int, partner_id: int, round_num: int, question_id: int):
     q = WYR_QUESTIONS[question_id]
     text = (
@@ -2676,6 +2717,7 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
 
 
 # ─── Confession Roulette Helpers ──────────────────────────────────────────────
+# ─── Game: Confession Roulette ────────────────────────────────────────────────
 def _get_cr_question(level: int, used_indices: list) -> tuple[int, str]:
     """Ambil pertanyaan CR yang belum dipakai. Return (idx, question)."""
     questions = CR_QUESTIONS[level]["questions"]
@@ -3178,7 +3220,7 @@ def main():
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(~filters.COMMAND, message))
 
-    app.post_init = notify_online
+    # app.post_init = notify_online
 
     logger.info("Bot started.")
     app.run_polling()
