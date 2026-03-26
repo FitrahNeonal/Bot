@@ -2591,28 +2591,34 @@ async def _handle_cr_callbacks(data: str, user_id: int, query, context):
         partner_id  = cr_data["partner_id"]
         level       = cr_data["level"]
         session_key = f"cr_used_{min(user_id, partner_id)}_{max(user_id, partner_id)}"
-        used        = context.application.bot_data.get(session_key, [])
-        q_idx, _    = _get_cr_question(level, used)
-        used.append(q_idx)
-        context.application.bot_data[session_key] = used
-        db_cr_next_round(user_id, partner_id, q_idx)
 
-        await context.bot.send_message(
-            chat_id=partner_id,
-            text="⏭ <i>Partner skip pertanyaan ini. Lanjut ke berikutnya!</i>",
-            parse_mode="HTML"
-        )
+        # Pakai ready flag — kedua user harus skip/next dulu sebelum lanjut
+        context.application.bot_data[f"cr_next_ready_{user_id}"] = True
+        if context.application.bot_data.get(f"cr_next_ready_{partner_id}"):
+            context.application.bot_data.pop(f"cr_next_ready_{user_id}", None)
+            context.application.bot_data.pop(f"cr_next_ready_{partner_id}", None)
 
-        cr_data = db_get_cr(user_id)
-        round_num = cr_data["round"]
+            used     = context.application.bot_data.get(session_key, [])
+            q_idx, _ = _get_cr_question(level, used)
+            used.append(q_idx)
+            context.application.bot_data[session_key] = used
+            db_cr_next_round(user_id, partner_id, q_idx)
 
-        # Cek apakah saatnya tawarin naik level
-        if round_num > CR_LEVEL_ROUNDS_BEFORE_UPGRADE and level < 5:
-            hint = _cr_level_up_hint(level)
-            await context.bot.send_message(chat_id=user_id, text=hint, parse_mode="HTML", reply_markup=btn_cr_level_up())
-            await context.bot.send_message(chat_id=partner_id, text=hint, parse_mode="HTML", reply_markup=btn_cr_level_up())
+            cr_data   = db_get_cr(user_id)
+            round_num = cr_data["round"]
+
+            if round_num % CR_LEVEL_ROUNDS_BEFORE_UPGRADE == 1 and round_num > 1 and level < 5:
+                hint = _cr_level_up_hint(level)
+                await context.bot.send_message(chat_id=user_id, text=hint, parse_mode="HTML", reply_markup=btn_cr_level_up())
+                await context.bot.send_message(chat_id=partner_id, text=hint, parse_mode="HTML", reply_markup=btn_cr_level_up())
+            else:
+                await _send_cr_question(context.bot, user_id, partner_id, cr_data)
         else:
-            await _send_cr_question(context.bot, user_id, partner_id, cr_data)
+            await context.bot.send_message(
+                chat_id=partner_id,
+                text="⏭ <i>Partner mau skip pertanyaan ini. Kamu juga mau skip atau mau lanjut jawab?</i>",
+                parse_mode="HTML"
+            )
         return
 
     # ── Lanjut pertanyaan berikutnya ──────────────────────────────
@@ -2650,7 +2656,7 @@ async def _handle_cr_callbacks(data: str, user_id: int, query, context):
             cr_data   = db_get_cr(user_id)
             round_num = cr_data["round"]
 
-            if round_num > CR_LEVEL_ROUNDS_BEFORE_UPGRADE and level < 5:
+            if round_num % CR_LEVEL_ROUNDS_BEFORE_UPGRADE == 1 and round_num > 1 and level < 5:
                 hint = _cr_level_up_hint(level)
                 await context.bot.send_message(chat_id=user_id, text=hint, parse_mode="HTML", reply_markup=btn_cr_level_up())
                 await context.bot.send_message(chat_id=partner_id, text=hint, parse_mode="HTML", reply_markup=btn_cr_level_up())
@@ -2695,12 +2701,23 @@ async def _handle_cr_callbacks(data: str, user_id: int, query, context):
         cr_data = db_get_cr(user_id)
         if not cr_data:
             return
+        partner_id = cr_data["partner_id"]
         await query.answer("Oke, lanjut dulu!")
         try:
             await query.edit_message_reply_markup(reply_markup=None)
         except Exception:
             pass
-        await _send_cr_question(context.bot, user_id, cr_data["partner_id"], cr_data)
+        # Generate pertanyaan baru biar ga kirim yang sama
+        level       = cr_data["level"]
+        session_key = f"cr_used_{min(user_id, partner_id)}_{max(user_id, partner_id)}"
+        used        = context.application.bot_data.get(session_key, [])
+        q_idx, _    = _get_cr_question(level, used)
+        used.append(q_idx)
+        context.application.bot_data[session_key] = used
+        db_cr_next_round(user_id, partner_id, q_idx)
+        cr_data = db_get_cr(user_id)
+        await context.bot.send_message(chat_id=partner_id, text="➡️ <i>Lanjut pertanyaan berikutnya!</i>", parse_mode="HTML")
+        await _send_cr_question(context.bot, user_id, partner_id, cr_data)
         return
 
     # ── Partner setuju naik level ─────────────────────────────────
@@ -2742,17 +2759,28 @@ async def _handle_cr_callbacks(data: str, user_id: int, query, context):
         cr_data = db_get_cr(user_id)
         if not cr_data:
             return
+        partner_id = cr_data["partner_id"]
         await query.answer("Oke, santuy!")
         try:
             await query.edit_message_reply_markup(reply_markup=None)
         except Exception:
             pass
+        # Kabarin yang request (partner) bahwa ditolak
         await context.bot.send_message(
-            chat_id=cr_data["partner_id"],
+            chat_id=partner_id,
             text="😅 <i>Partner belum siap naik level. Gapapa, lanjut dulu di sini!</i>",
             parse_mode="HTML"
         )
-        await _send_cr_question(context.bot, user_id, cr_data["partner_id"], cr_data)
+        # Generate pertanyaan baru, kirim ke keduanya dengan perspektif yang benar
+        level       = cr_data["level"]
+        session_key = f"cr_used_{min(user_id, partner_id)}_{max(user_id, partner_id)}"
+        used        = context.application.bot_data.get(session_key, [])
+        q_idx, _    = _get_cr_question(level, used)
+        used.append(q_idx)
+        context.application.bot_data[session_key] = used
+        db_cr_next_round(user_id, partner_id, q_idx)
+        cr_data = db_get_cr(user_id)
+        await _send_cr_question(context.bot, user_id, partner_id, cr_data)
         return
 
     # ── Selesai / akhiri game ─────────────────────────────────────
@@ -2942,7 +2970,7 @@ def main():
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(~filters.COMMAND, message))
 
-    app.post_init = notify_online
+    # app.post_init = notify_online
 
     logger.info("Bot started.")
     app.run_polling()
