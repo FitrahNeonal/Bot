@@ -537,7 +537,8 @@ def init_db():
             umur TEXT DEFAULT NULL,
             total_chats INTEGER DEFAULT 0,
             total_duration REAL DEFAULT 0,
-            longest_chat REAL DEFAULT 0)""",
+            longest_chat REAL DEFAULT 0,
+            last_active REAL DEFAULT NULL)""",
         """CREATE TABLE IF NOT EXISTS referrals (
             referrer_id INTEGER NOT NULL,
             referred_id INTEGER NOT NULL,
@@ -571,6 +572,14 @@ def init_db():
             started_at REAL NOT NULL)""",
     ]:
         execute_turso(sql)
+
+    # Migrasi: tambah kolom last_active kalau belum ada (untuk DB yang sudah exist)
+    try:
+        execute_turso("ALTER TABLE users ADD COLUMN last_active REAL DEFAULT NULL")
+        logger.info("Migrasi: kolom last_active ditambahkan.")
+    except Exception:
+        pass  # Kolom sudah ada, skip
+
 
 def db_add_waiting(user_id: int, gender_pref: str | None = None):
     execute_turso(
@@ -632,6 +641,7 @@ def db_remove_chat(user_id: int, partner_id: int | None = None):
 
 def db_increment_msg(user_id: int):
     execute_turso("UPDATE active_chats SET msg_count = msg_count + 1 WHERE user_id = ?", [user_id])
+    db_update_last_active(user_id)
 
 def db_get_chat_info(user_id: int) -> dict | None:
     rows = execute_turso(
@@ -661,10 +671,13 @@ def db_register_user(user_id: int, referred_by: int | None = None) -> bool:
     rows = execute_turso("SELECT 1 FROM users WHERE user_id = ?", [user_id])
     is_new = len(rows) == 0
     if is_new:
-        execute_turso("INSERT INTO users VALUES (?, ?, ?, 0, 0, 0, NULL, NULL, NULL, 0, 0, 0)", [user_id, time.time(), referred_by])
+        execute_turso("INSERT INTO users VALUES (?, ?, ?, 0, 0, 0, NULL, NULL, NULL, 0, 0, 0, ?)", [user_id, time.time(), referred_by, time.time()])
         if referred_by:
             execute_turso("INSERT OR IGNORE INTO referrals VALUES (?, ?, ?)", [referred_by, user_id, time.time()])
     return is_new
+
+def db_update_last_active(user_id: int):
+    execute_turso("UPDATE users SET last_active = ? WHERE user_id = ?", [time.time(), user_id])
 
 def db_get_referral_count(user_id: int) -> int:
     rows = execute_turso("SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", [user_id])
@@ -1432,6 +1445,86 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _handle_cr_callbacks(data, user_id, query, context)
         return
 
+    # ── Admin ping callbacks ──────────────────────────────────────
+    if data.startswith("ping_cat_") and user_id == ADMIN_ID:
+        ping_state = context.application.bot_data.get("ping_state")
+        if not ping_state:
+            await context.bot.send_message(chat_id=ADMIN_ID, text="⚠️ Sesi ping expired. Jalankan /admin ping lagi.")
+            return
+
+        cat = data.split("ping_cat_")[1]  # never / inactive / referred / notify / all
+
+        PING_MSGS = {
+            "never": (
+                "👋 <i>Eh, udah daftar tapi belum sempet nyobain?\n\n"
+                "Ketik /find — biasanya langsung dapet partner. Ga lama kok.</i>"
+            ),
+            "referred": (
+                "👋 <i>Kamu join lewat invite temen kamu — tapi belum sempet ngobrol sama siapapun.\n\n"
+                "Coba /find dulu, siapa tau seru.</i>"
+            ),
+            "inactive": (
+                "👋 <i>Lama ga keliatan nih.\n\n"
+                "Kalau lagi gabut, /find aja — siapa tau dapet obrolan yang seru hari ini.</i>"
+            ),
+            "notify": (
+                "🔔 <i>Kamu pernah minta dikabarain kalau ada yang nyari partner.\n\n"
+                "Ada yang lagi online sekarang — mau /find lagi?</i>"
+            ),
+        }
+
+        if cat == "all":
+            targets = [
+                (ping_state["never"],    "never"),
+                (ping_state["referred"], "referred"),
+                (ping_state["inactive"], "inactive"),
+                (ping_state["notify"],   "notify"),
+            ]
+        else:
+            targets = [(ping_state.get(cat, set()), cat)]
+
+        results = {k: 0 for k in PING_MSGS}
+        results["fail"] = 0
+        sent_ids = set()
+
+        await context.bot.send_message(chat_id=ADMIN_ID, text="📡 <i>Mengirim ping...</i>", parse_mode="HTML")
+
+        for id_set, category in targets:
+            for uid in id_set:
+                if uid in sent_ids:
+                    continue
+                try:
+                    await context.bot.send_message(
+                        chat_id=uid,
+                        text=PING_MSGS[category],
+                        parse_mode="HTML"
+                    )
+                    results[category] += 1
+                    sent_ids.add(uid)
+                except Exception as e:
+                    logger.warning("Ping gagal ke %s (%s): %s", uid, category, e)
+                    results["fail"] += 1
+
+        context.application.bot_data.pop("ping_state", None)
+
+        label = {
+            "never": "😶 Belum pernah chat",
+            "referred": "🔗 Referral belum chat",
+            "inactive": "💤 Lama ga main",
+            "notify": "🔔 Notify list",
+            "all": "📡 Semua kategori",
+        }.get(cat, cat)
+
+        lines = [f"📡 <b>Ping selesai — {label}</b>\n"]
+        for k, emoji in [("never","😶"), ("referred","🔗"), ("inactive","💤"), ("notify","🔔")]:
+            if results[k]:
+                lines.append(f"{emoji} {k.capitalize()}: <b>{results[k]}</b>")
+        lines.append(f"❌ Gagal: <b>{results['fail']}</b>")
+        lines.append(f"\n✅ Total terkirim: <b>{len(sent_ids)}</b>")
+
+        await context.bot.send_message(chat_id=ADMIN_ID, text="\n".join(lines), parse_mode="HTML")
+        return
+
     if data == "notify_yes":
         db_add_notify(user_id)
         await context.bot.send_message(
@@ -1994,7 +2087,8 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "🚩 /admin reports — daftar report pending\n"
                 "🚫 /admin banned — daftar user banned\n"
                 "🔓 /admin unban &lt;user_id&gt; — unban user\n"
-                "📢 /admin broadcast — kirim pesan ke semua user"
+                "📢 /admin broadcast — kirim pesan ke semua user\n"
+                "📡 /admin ping &lt;hari&gt; — ping user inactive (muncul menu pilihan kategori)"
             ),
             parse_mode="HTML"
         )
@@ -2120,6 +2214,71 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="📝 Kirim pesannya sekarang (bisa multiline):\n\n<i>Ketik /cancel untuk batalkan.</i>",
             parse_mode="HTML"
         )
+
+    elif cmd == "ping":
+        if len(args) < 2:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text="⚠️ Format: /admin ping &lt;hari&gt;",
+                parse_mode="HTML"
+            )
+            return
+        try:
+            days = int(args[1])
+        except ValueError:
+            await context.bot.send_message(chat_id=ADMIN_ID, text="⚠️ Jumlah hari harus angka.")
+            return
+
+        cutoff = time.time() - (days * 86400)
+
+        try:
+            never_chatted  = {int(r[0]) for r in execute_turso(
+                "SELECT user_id FROM users WHERE total_chats = 0 AND banned = 0 AND first_seen < ?", [cutoff]
+            )}
+            inactive       = {int(r[0]) for r in execute_turso(
+                "SELECT user_id FROM users WHERE total_chats > 0 AND banned = 0 AND (last_active IS NULL OR last_active < ?)", [cutoff]
+            )}
+            referred_never = {int(r[0]) for r in execute_turso(
+                "SELECT user_id FROM users WHERE total_chats = 0 AND banned = 0 AND referred_by IS NOT NULL AND first_seen < ?", [cutoff]
+            )} - never_chatted
+            notify_waiting = {int(r[0]) for r in execute_turso("SELECT user_id FROM notify_list")}
+
+            # Simpan state ke bot_data supaya callback bisa akses
+            context.application.bot_data["ping_state"] = {
+                "days": days,
+                "never":    never_chatted,
+                "inactive": inactive,
+                "referred": referred_never,
+                "notify":   notify_waiting,
+            }
+
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=(
+                    f"📡 <b>Ping Manager — threshold {days} hari</b>\n\n"
+                    f"😶 Belum pernah chat: <b>{len(never_chatted)}</b> user\n"
+                    f"💤 Lama ga main: <b>{len(inactive)}</b> user\n"
+                    f"🔗 Referral belum chat: <b>{len(referred_never)}</b> user\n"
+                    f"🔔 Notify list: <b>{len(notify_waiting)}</b> user\n\n"
+                    f"Pilih kategori yang mau di-ping:"
+                ),
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton(f"😶 Belum pernah chat ({len(never_chatted)})", callback_data="ping_cat_never")],
+                    [InlineKeyboardButton(f"💤 Lama ga main ({len(inactive)})", callback_data="ping_cat_inactive")],
+                    [InlineKeyboardButton(f"🔗 Referral belum chat ({len(referred_never)})", callback_data="ping_cat_referred")],
+                    [InlineKeyboardButton(f"🔔 Notify list ({len(notify_waiting)})", callback_data="ping_cat_notify")],
+                    [InlineKeyboardButton("📡 Semua kategori", callback_data="ping_cat_all")],
+                ])
+            )
+
+        except Exception as e:
+            logger.error("admin ping error: %s", e)
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=f"⚠️ Gagal: <code>{e}</code>",
+                parse_mode="HTML"
+            )
 
     else:
         await context.bot.send_message(
@@ -3019,7 +3178,7 @@ def main():
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(~filters.COMMAND, message))
 
-    # app.post_init = notify_online
+    app.post_init = notify_online
 
     logger.info("Bot started.")
     app.run_polling()
