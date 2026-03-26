@@ -158,6 +158,162 @@ WYR_QUESTIONS = [
     ("Punya one night deep conversation yang kamu inget seumur hidup", "Punya hubungan panjang tapi ga ada satu momen pun yang memorable"),
 ]
 
+# ─── Confession Roulette — Bank Soal ────────────────────────────────────────
+CR_LEVEL_ROUNDS_BEFORE_UPGRADE = 5  # Ronde sebelum bisa naik level
+
+CR_QUESTIONS = {
+    1: {
+        "name": "Stranger", "emoji": "🌱",
+        "questions": [
+            "Kalau hidup kamu dijadiin film, genre-nya apa?",
+            "Hal random apa yang bikin kamu seneng hari ini?",
+            "Kamu tipe yang suka keramaian atau ketenangan?",
+            "Lagi sering dengerin lagu apa belakangan ini?",
+            "Kalau bisa teleport sekarang, mau ke mana?",
+            "Hal kecil apa yang bikin kamu kesel tapi ga penting-penting amat?",
+            "Punya guilty pleasure ga? Boleh yang ga malu-maluin 😄",
+            "Kalau dikasih satu hari bebas tanpa tanggung jawab, ngapain?",
+            "Overthinking atau underthinking?",
+            "Pagi atau malem?",
+            "Kalau kepribadian lo bisa diwakili sama satu hewan, kira-kira hewan apa?",
+            "Hal paling random yang pernah lo googling tengah malem?",
+            "Lo tipe yang pesan makanan yang sama terus atau suka eksplorasi menu baru?",
+            "Satu kata yang orang-orang sering pakai buat describe lo — setuju ga?",
+            "Lagi nunggu sesuatu ga? Bisa apa aja.",
+            "Kalau lo bisa nambahin satu mata pelajaran di sekolah, maunya apa?",
+            "Hal sepele apa yang bikin lo langsung good mood?",
+            "Lo lebih sering jalan duluan atau nunggu diajak?",
+            "Ada kebiasaan tidur yang aneh ga? Misal harus gelap total atau butuh kipas.",
+            "Kalau suasana hati lo hari ini dijadiin cuaca, lagi jenis cuaca apa?",
+            "Lebih suka tau spoiler atau ga sama sekali?",
+            "Satu hal kecil yang selalu lo lakuin tiap hari tanpa sadar?",
+            "Lo tipe yang bales chat cepet atau yang baca dulu lama baru bales?",
+            "Makanan apa yang selalu ada di pikiran lo kalau lagi lapar tapi bingung mau makan apa?",
+            "Kalau lo bisa pilih satu skill instan tanpa belajar, lo mau skill apa?",
+        ]
+    },
+    2: {
+        "name": "Kenal", "emoji": "🤝",
+        "questions": [
+            "Hal apa yang bikin kamu semangat tapi jarang ada yang tau?",
+            "Kebiasaan aneh apa yang kamu punya tapi ga mau diakui?",
+            "Momen paling canggung yang masih suka kamu inget tiba-tiba?",
+            "Sesuatu yang kamu takutin tapi terlihat sepele buat orang lain?",
+            "Satu hal yang kamu pengen kuasai tapi belum sempet belajar?",
+            "Kapan terakhir kali kamu ketawa sampai sakit perut?",
+            "Ada ga keputusan kecil yang ternyata ngubah hidup kamu?",
+            "Hal apa yang bikin kamu ngerasa paling jadi diri sendiri?",
+            "Kalau bisa ngobrol sama versi kamu 5 tahun lalu, mau bilang apa?",
+            "Sesuatu yang kamu banggain tapi jarang diomongin?",
+            "Hal apa yang lo paling males ngejelesin ke orang baru karena capek ngejelasinnya?",
+            "Lo lebih takut gagal atau takut ga pernah nyoba?",
+            "Ada ga orang yang cara hidupnya diem-diem lo kagumi?",
+            "Sesuatu yang bikin lo excited tapi ngerasa ga ada yang bakal ngerti kalau lo cerita?",
+            "Versi lo yang mana yang paling sering muncul waktu lagi sama orang baru?",
+            "Hal yang paling sering lo tunda padahal sebenernya penting?",
+            "Lo tipe yang gampang bilang \"iya\" padahal sebenernya pengen bilang \"ga\"?",
+            "Ada momen di mana lo ngerasa salah tempat tapi pura-pura fine?",
+            "Satu ekspektasi yang lo punya soal umur sekarang tapi ternyata meleset?",
+            "Kalau lo bisa ngehapus satu memori, lo pilih yang mana — kenangan buruk atau kenangan indah yang udah ga mungkin balik?",
+            "Lo lebih suka dikritik langsung atau dikasih hint halus?",
+            "Sesuatu yang lo lakuin sendiri yang ngerasa beda kalau ada orang lain nemenin?",
+            "Ada ga kata-kata orang yang masih nyangkut sampai sekarang — entah nyakitin atau nyemangatin?",
+            "Kalau lo jujur, sekarang lo lagi ngejar apa sebenernya?",
+            "Hal apa yang bikin lo diem-diem iri sama orang lain tapi ga mau ngaku?",
+        ]
+    },
+    3: {
+        "name": "Temenan", "emoji": "😊",
+        "questions": [
+            "Hal apa yang bikin kamu cape tapi susah buat berhenti?",
+            "Ada ga sesuatu yang kamu sesali dari hubungan pertemanan kamu?",
+            "Kapan terakhir kali kamu ngerasa beneran kesepian?",
+            "Sesuatu yang kamu pengen orang lain pahami tentang kamu?",
+            "Mimpi yang udah lama kamu pendam tapi belum berani dikejar?",
+            "Momen apa yang bikin kamu sadar kamu udah berubah?",
+            "Hal apa yang bikin kamu overthink paling parah?",
+            "Ada versi diri kamu yang kamu sembunyiin dari kebanyakan orang?",
+            "Kapan terakhir kamu ngerasa bangga sama diri sendiri?",
+            "Sesuatu yang kamu harapin bisa lebih mudah tapi ternyata susah?",
+            "Lo pernah ga punya perasaan ke seseorang tapi milih diem karena takut salah waktu?",
+            "Sesuatu yang lo harapin dari pertemanan tapi jarang banget dapet?",
+            "Momen apa yang bikin lo ngerasa paling ga dihargai?",
+            "Lo tipe yang lebih gampang maafin orang lain atau maafin diri sendiri?",
+            "Ada bagian dari diri lo yang lo rasa berubah — dan lo belum tau itu baik atau buruk?",
+            "Hal apa yang lo lakuin kalau lagi ngerasa overwhelmed tapi ga mau cerita ke siapa-siapa?",
+            "Lo pernah ngerasa jadi orang yang berbeda tergantung sama siapa lo ngobrol?",
+            "Sesuatu yang lo diem-diem pengen banget denger dari seseorang?",
+            "Kalau lo bisa ngubah satu hal dari cara lo dibesarin, apa yang lo ubah?",
+            "Ada ga mimpi yang lo udah mulai lo anggep ga realistis padahal dulu lo yakin banget?",
+            "Hal apa yang bikin lo ngerasa paling aman?",
+            "Lo lebih takut kehilangan seseorang atau takut jadi beban buat mereka?",
+            "Sesuatu yang orang sering salah baca dari lo — dan lo udah capek ngebenerin?",
+            "Kapan terakhir kali lo ngerasa beneran dimengerti sama seseorang?",
+            "Ada ga keputusan yang lo ambil karena orang lain, bukan karena lo sendiri mau?",
+        ]
+    },
+    4: {
+        "name": "Sahabat", "emoji": "💙",
+        "questions": [
+            "Ketakutan terbesar kamu yang jarang kamu akui ke diri sendiri?",
+            "Ada luka lama yang masih suka kerasa walau udah lama?",
+            "Sesuatu yang kamu butuhkan dari orang lain tapi susah minta?",
+            "Kapan pertama kali kamu ngerasa dunia ga seadil yang kamu pikir?",
+            "Hal apa yang kamu lakuin buat cope tapi sebenernya ga sehat?",
+            "Ada ga orang yang pernah ninggalin bekas yang susah ilang?",
+            "Sesuatu tentang diri kamu yang masih belum kamu terima sepenuhnya?",
+            "Momen paling kamu ngerasa sendirian padahal dikelilingin orang?",
+            "Kalau bisa jujur sama satu orang tanpa konsekuensi, mau bilang apa?",
+            "Hal apa yang paling kamu takutin dari masa depan?",
+            "Pernah ga lo ngerasa lo udah kehilangan sebagian diri lo dan ga tau cara nemuin balik?",
+            "Hal apa yang paling susah lo terima waktu lo sendirian sama pikiran lo sendiri?",
+            "Lo pernah ngerasa sayang sama seseorang tapi milih mundur — kenapa?",
+            "Sesuatu yang bikin lo ngerasa cukup — dan seberapa sering lo ngerasa itu?",
+            "Ada ekspektasi diam-diam yang lo punya ke diri sendiri yang belum pernah lo ucapin?",
+            "Kapan terakhir kali lo nangis — dan lo nangis karena apa?",
+            "Hal apa yang lo pengen lakuin tapi terus lo tunda karena nunggu waktu yang \"tepat\"?",
+            "Lo lebih sering nyalahin diri sendiri atau situasi kalau sesuatu ga berjalan baik?",
+            "Ada ga bagian dari hidup lo yang lo pura-pura fine padahal udah lama capek?",
+            "Sesuatu yang lo tau lo harus lepaskan tapi masih lo pegang sampai sekarang?",
+            "Lo pernah ngerasa kesepian di tengah hubungan — entah pertemanan atau lebih?",
+            "Hal apa yang bikin lo sulit percaya sama orang baru?",
+            "Ada ga versi hidup lo yang lo bayangin kalau lo dulu ambil keputusan yang beda?",
+            "Sesuatu yang lo lakuin buat ngehindarin diri dari pikiran lo sendiri?",
+            "Kalau lo bisa ngomong jujur ke seseorang tanpa takut hubungannya berubah, lo mau bilang apa?",
+        ]
+    },
+    5: {
+        "name": "Deket Banget", "emoji": "🔥",
+        "questions": [
+            "Sesuatu yang kamu mau orang terdekat kamu tau tapi susah diucapin?",
+            "Momen di mana kamu ngerasa paling patah?",
+            "Versi diri kamu yang paling kamu ga suka — dan kenapa masih ada?",
+            "Ada ekspektasi orang lain yang udah lama kamu pikul tanpa sadar?",
+            "Hal yang paling kamu sesali sampai sekarang?",
+            "Sesuatu yang kamu percaya tentang diri sendiri yang mungkin salah?",
+            "Kalau bisa ulang satu momen dalam hidup, mana yang kamu pilih?",
+            "Apa yang paling kamu takutin dari diri kamu sendiri?",
+            "Sesuatu yang belum pernah kamu ceritain ke siapapun?",
+            "Kalau ini percakapan terakhir kamu, apa yang mau kamu sampaikan?",
+            "Sesuatu yang lo tau tentang diri lo yang bikin lo takut kalau orang lain tau?",
+            "Lo pernah ga ngerasa lo lagi nge-act jadi versi diri lo yang orang lain mau, bukan yang lo mau?",
+            "Hal apa yang paling susah lo maafin dari diri lo sendiri?",
+            "Ada ga seseorang yang lo kangen tapi lo tau lo ga bisa balik ke sana?",
+            "Sesuatu yang lo diem-diem takutin dari cara lo nyayangin orang?",
+            "Lo pernah ngerasa lo lebih kenal sama stranger daripada orang-orang terdekat lo?",
+            "Bagian mana dari hidup lo yang paling lo rasa belum beneran lo jalani?",
+            "Lo pernah ga sadar lo udah jauh banget berubah — dan ngerasa asing sama diri sendiri?",
+            "Sesuatu yang lo harapin ada yang tanya tapi ga pernah ada yang tanya?",
+            "Kalau lo boleh jujur, lo lagi baik-baik aja ga?",
+            "Ada ga hal yang bikin lo tetap bertahan sampai sekarang yang ga banyak orang tau?",
+            "Lo pernah ngerasa lo harus ngehilang sebentar dari semua orang — dan lo lakuin itu?",
+            "Sesuatu yang lo mau lo percaya tentang diri lo tapi susah banget lo yakinin?",
+            "Momen apa yang bikin lo paling ngerasa hidup — bukan bahagia, tapi beneran hidup?",
+            "Kalau orang yang paling lo sayang baca semua isi kepala lo sekarang, lo takut mereka bakal nemu apa?",
+        ]
+    },
+}
+
 CARI_PARTNER = ReplyKeyboardMarkup(
     [["🚀 Cari partner"], ["📊 Stats"]],
     resize_keyboard=True,
@@ -186,6 +342,44 @@ def btn_game_replay():
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("🔄 Main lagi", callback_data="game_replay"),
         InlineKeyboardButton("❌ Selesai", callback_data="game_end"),
+    ]])
+
+
+def btn_cr_invite():
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Siap!", callback_data="cr_accept"),
+        InlineKeyboardButton("❌ Gak deh", callback_data="cr_decline"),
+    ]])
+
+def btn_cr_action(round_num: int):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Udah jawab, lanjut!", callback_data=f"cr_next_{round_num}")],
+        [InlineKeyboardButton("⏭ Skip pertanyaan ini", callback_data=f"cr_skip_{round_num}"),
+         InlineKeyboardButton("🛑 Selesai", callback_data="cr_end")],
+    ])
+
+def btn_cr_next(round_num: int):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Udah jawab, lanjut!", callback_data=f"cr_next_{round_num}")],
+        [InlineKeyboardButton("🛑 Selesai", callback_data="cr_end")],
+    ])
+
+def btn_cr_level_up():
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🆙 Naik level!", callback_data="cr_levelup_request"),
+        InlineKeyboardButton("➡️ Lanjut level ini", callback_data="cr_levelup_skip"),
+    ]])
+
+def btn_cr_level_up_confirm():
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Ayok naik!", callback_data="cr_levelup_accept"),
+        InlineKeyboardButton("😅 Belum siap", callback_data="cr_levelup_reject"),
+    ]])
+
+def btn_cr_replay():
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🔄 Main lagi dari awal", callback_data="cr_replay"),
+        InlineKeyboardButton("✅ Udahan", callback_data="cr_end"),
     ]])
 
 def btn_waiting():
@@ -308,13 +502,9 @@ def execute_turso(sql: str, params: list = None) -> list:
         data=data,
         headers={"Authorization": f"Bearer {TURSO_TOKEN}", "Content-Type": "application/json"}
     )
-    try:
-        with urllib.request.urlopen(req, timeout=10) as res:
-            result = _json.loads(res.read())["results"][0]["response"]["result"]
-        return [[col.get("value") for col in row] for row in result["rows"]]
-    except Exception as e:
-        logger.error("execute_turso error [%s]: %s", sql[:60], e)
-        raise
+    with urllib.request.urlopen(req) as res:
+        result = _json.loads(res.read())["results"][0]["response"]["result"]
+    return [[col.get("value") for col in row] for row in result["rows"]]
 
 def init_db():
     for sql in [
@@ -360,6 +550,14 @@ def init_db():
             partner_id INTEGER NOT NULL,
             requested_at REAL NOT NULL,
             PRIMARY KEY (user_id, partner_id))""",
+        """CREATE TABLE IF NOT EXISTS cr_sessions (
+            user_id          INTEGER PRIMARY KEY,
+            partner_id       INTEGER NOT NULL,
+            level            INTEGER DEFAULT 1,
+            question_idx     INTEGER DEFAULT 0,
+            round            INTEGER DEFAULT 1,
+            level_up_request TEXT DEFAULT NULL,
+            started_at       REAL NOT NULL)""",
         """CREATE TABLE IF NOT EXISTS game_sessions (
             user_id INTEGER PRIMARY KEY,
             partner_id INTEGER NOT NULL,
@@ -520,6 +718,69 @@ def db_next_game_round(user_id: int, partner_id: int, question_id: int, round_nu
 
 def db_delete_game(user_id: int, partner_id: int):
     execute_turso("DELETE FROM game_sessions WHERE user_id = ? OR user_id = ?", [user_id, partner_id])
+
+
+# ─── Confession Roulette DB ───────────────────────────────────────────────────
+def db_create_cr(user_id: int, partner_id: int, level: int, question_idx: int):
+    now = time.time()
+    execute_turso(
+        "INSERT OR REPLACE INTO cr_sessions VALUES (?, ?, ?, ?, 1, NULL, ?)",
+        [user_id, partner_id, level, question_idx, now]
+    )
+    execute_turso(
+        "INSERT OR REPLACE INTO cr_sessions VALUES (?, ?, ?, ?, 1, NULL, ?)",
+        [partner_id, user_id, level, question_idx, now]
+    )
+
+def db_get_cr(user_id: int) -> dict | None:
+    rows = execute_turso(
+        "SELECT partner_id, level, question_idx, round, level_up_request, started_at FROM cr_sessions WHERE user_id = ?",
+        [user_id]
+    )
+    if not rows:
+        return None
+    return {
+        "partner_id":       int(rows[0][0]),
+        "level":            int(rows[0][1] or 1),
+        "question_idx":     int(rows[0][2] or 0),
+        "round":            int(rows[0][3] or 1),
+        "level_up_request": rows[0][4],
+        "started_at":       float(rows[0][5]),
+    }
+
+def db_cr_next_round(user_id: int, partner_id: int, question_idx: int):
+    execute_turso(
+        "UPDATE cr_sessions SET question_idx = ?, round = round + 1, level_up_request = NULL WHERE user_id = ?",
+        [question_idx, user_id]
+    )
+    execute_turso(
+        "UPDATE cr_sessions SET question_idx = ?, round = round + 1, level_up_request = NULL WHERE user_id = ?",
+        [question_idx, partner_id]
+    )
+
+def db_cr_set_level_up_request(user_id: int):
+    execute_turso(
+        "UPDATE cr_sessions SET level_up_request = ? WHERE user_id = ?",
+        [str(user_id), user_id]
+    )
+
+def db_cr_upgrade_level(user_id: int, partner_id: int):
+    execute_turso(
+        "UPDATE cr_sessions SET level = level + 1, round = 1, level_up_request = NULL WHERE user_id = ? OR user_id = ?",
+        [user_id, partner_id]
+    )
+
+def db_cr_set_question_idx(user_id: int, partner_id: int, q_idx: int):
+    execute_turso(
+        "UPDATE cr_sessions SET question_idx = ? WHERE user_id = ? OR user_id = ?",
+        [q_idx, user_id, partner_id]
+    )
+
+def db_delete_cr(user_id: int, partner_id: int):
+    execute_turso(
+        "DELETE FROM cr_sessions WHERE user_id = ? OR user_id = ?",
+        [user_id, partner_id]
+    )
 
 def db_set_gender(user_id: int, gender: str):
     execute_turso("UPDATE users SET gender = ? WHERE user_id = ?", [gender, user_id])
@@ -765,6 +1026,10 @@ async def _do_skip(user_id: int, context):
         db_remove_chat(user_id, partner)
         clear_log(user_id)
         clear_log(partner)
+        if db_get_cr(user_id):
+            db_delete_cr(user_id, partner)
+            session_key = f"cr_used_{min(user_id, partner)}_{max(user_id, partner)}"
+            context.application.bot_data.pop(session_key, None)
         streak = db_update_skip_streak(user_id)
         await context.bot.send_message(chat_id=user_id, text="🔎 <i>Oke, nyari yang baru...</i>", parse_mode="HTML")
         await context.bot.send_message(
@@ -794,6 +1059,16 @@ async def _do_stop(user_id: int, context):
     db_remove_chat(user_id, partner)
     clear_log(user_id)
     clear_log(partner)
+
+    # Hapus CR kalau ada
+    if db_get_cr(user_id):
+        db_delete_cr(user_id, partner)
+        session_key = f"cr_used_{min(user_id, partner)}_{max(user_id, partner)}"
+        context.application.bot_data.pop(session_key, None)
+        try:
+            await context.bot.send_message(chat_id=partner, text="🃏 <i>Confession Roulette selesai karena partner disconnect.</i>", parse_mode="HTML")
+        except TelegramError:
+            pass
 
     # Hapus game kalau ada
     if db_get_game(user_id):
@@ -1601,9 +1876,68 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ── Game select menu ─────────────────────────────────────────
+    if data == "game_select_wyr":
+        partner = db_get_partner(user_id)
+        if not partner:
+            await query.answer("Kamu udah ga punya partner.")
+            return
+        await query.answer()
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="📨 <i>Undangan Would You Rather dikirim ke partner kamu...</i>",
+            parse_mode="HTML"
+        )
+        await context.bot.send_message(
+            chat_id=partner,
+            text="🎲 <b>Partner kamu ngajak main Would You Rather!</b>\n\nMau main bareng?",
+            parse_mode="HTML",
+            reply_markup=btn_game_invite()
+        )
+        context.application.bot_data[f"game_invite_{partner}"] = user_id
+        return
+
+    if data == "game_select_cr":
+        partner = db_get_partner(user_id)
+        if not partner:
+            await query.answer("Kamu udah ga punya partner.")
+            return
+        await query.answer()
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="📨 <i>Undangan Confession Roulette dikirim ke partner kamu...</i>",
+            parse_mode="HTML"
+        )
+        await context.bot.send_message(
+            chat_id=partner,
+            text=(
+                "🃏 <b>Partner kamu ngajak main Confession Roulette!</b>\n\n"
+                "<i>Jawab pertanyaan random bareng. Mulai dari yang ringan dulu — "
+                "makin dalam kalau kalian udah nyambung.</i>\n\n"
+                "Berani ga? 👀"
+            ),
+            parse_mode="HTML",
+            reply_markup=btn_cr_invite()
+        )
+        context.application.bot_data[f"cr_invite_{partner}"] = user_id
+        return
+
     # ── Game callbacks ────────────────────────────────────────────
     if data.startswith("game_"):
         await _handle_game_callbacks(data, user_id, query, context)
+        return
+
+    # ── CR callbacks ──────────────────────────────────────────────
+    if data.startswith("cr_"):
+        await _handle_cr_callbacks(data, user_id, query, context)
         return
 
 
@@ -1658,7 +1992,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "4. Kalau mau ganti partner, pencet tombol ⏭ Skip\n\n"
             "<b>Setelah chat selesai:</b>\n"
             "Ada tombol 🔄 Hubungkan lagi — kalau mau balik ke partner yang sama, dua-duanya harus pencet. Berlaku 6 jam.\n\n"
-            "⚠️ Spam, konten dewasa, atau nyebarin info pribadi orang → langsung report. Laporan kamu akan ditinjau admin.\n\n"
+            "⚠️ Spam, konten dewasa, atau nyebarin info pribadi orang → langsung report. 3 report = auto-banned.\n\n"
             "———\n"
             "🐛 Ada bug atau pertanyaan?\n"
             "Join channel → @anonyneo\n"
@@ -1926,18 +2260,29 @@ async def game(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    if db_get_cr(user_id):
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="⚠️ <i>Confession Roulette kalian belum selesai!</i>",
+            parse_mode="HTML"
+        )
+        return
+
     await context.bot.send_message(
         chat_id=user_id,
-        text="📨 <i>Undangan game dikirim ke partner kamu...</i>",
-        parse_mode="HTML"
-    )
-    await context.bot.send_message(
-        chat_id=partner,
-        text="🎮 <b>Partner kamu ngajak main Would You Rather!</b>\n\nMau main bareng?",
+        text=(
+            "🎮 <b>Pilih game:</b>\n\n"
+            "🎲 <b>Would You Rather</b> — pilih A atau B, reveal bareng, debat seru.\n\n"
+            "🃏 <b>Confession Roulette</b> — jawab pertanyaan random bareng partner. "
+            "Mulai ringan, makin dalam kalau kalian udah nyambung.\n\n"
+            "<i>Mau main yang mana?</i>"
+        ),
         parse_mode="HTML",
-        reply_markup=btn_game_invite()
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🎲 Would You Rather", callback_data="game_select_wyr"),
+            InlineKeyboardButton("🃏 Confession Roulette", callback_data="game_select_cr"),
+        ]])
     )
-    context.application.bot_data[f"game_invite_{partner}"] = user_id
 
 
 async def _handle_game_callbacks(data: str, user_id: int, query, context):
@@ -2143,6 +2488,342 @@ async def _handle_game_callbacks(data: str, user_id: int, query, context):
         return
 
 
+
+# ─── Confession Roulette Helpers ──────────────────────────────────────────────
+def _get_cr_question(level: int, used_indices: list) -> tuple[int, str]:
+    """Ambil pertanyaan CR yang belum dipakai. Return (idx, question)."""
+    questions = CR_QUESTIONS[level]["questions"]
+    available = [i for i in range(len(questions)) if i not in used_indices]
+    if not available:
+        available = list(range(len(questions)))
+    idx = random.choice(available)
+    return idx, questions[idx]
+
+async def _send_cr_question(bot, user_id: int, partner_id: int, cr_data: dict):
+    level    = cr_data["level"]
+    round_num = cr_data["round"]
+    q_idx    = cr_data["question_idx"]
+    question = CR_QUESTIONS[level]["questions"][q_idx]
+    lname    = CR_QUESTIONS[level]["name"]
+    lemoji   = CR_QUESTIONS[level]["emoji"]
+
+    # Saran level di pertanyaan pertama
+    level_hint = ""
+    if level == 1 and round_num == 1:
+        level_hint = "\n\n💡 <i>Lagi di level Stranger — santai aja dulu, ga harus dalam-dalam.</i>"
+    elif level == 5 and round_num == 1:
+        level_hint = "\n\n🔥 <i>Level tertinggi. Kalian udah jauh banget — respect.</i>"
+
+    text = (
+        f"🎲 <b>Confession Roulette</b>\n"
+        f"<i>{lemoji} Level {level} — {lname} • Ronde {round_num}</i>\n"
+        f"──────────────────\n\n"
+        f"<b>{question}</b>"
+        f"{level_hint}"
+    )
+
+    await bot.send_message(chat_id=user_id, text=text, parse_mode="HTML", reply_markup=btn_cr_action(round_num))
+    await bot.send_message(chat_id=partner_id, text=text, parse_mode="HTML", reply_markup=btn_cr_action(round_num))
+
+
+async def _handle_cr_callbacks(data: str, user_id: int, query, context):
+
+    # ── Terima invite ─────────────────────────────────────────────
+    if data == "cr_accept":
+        inviter = context.application.bot_data.get(f"cr_invite_{user_id}")
+        if not inviter:
+            await query.answer("Undangan udah expired.")
+            return
+        context.application.bot_data.pop(f"cr_invite_{user_id}", None)
+
+        if db_get_partner(user_id) != inviter or db_get_partner(inviter) != user_id:
+            await query.answer("Kalian udah ga nyambung.")
+            return
+
+        session_key = f"cr_used_{min(user_id, inviter)}_{max(user_id, inviter)}"
+        q_idx, _ = _get_cr_question(1, [])
+        context.application.bot_data[session_key] = [q_idx]
+        db_create_cr(user_id, inviter, 1, q_idx)
+
+        await query.answer("Game dimulai!")
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await context.bot.send_message(chat_id=inviter, text="✅ <i>Partner siap! Let's go 🎲</i>", parse_mode="HTML")
+        cr_data = db_get_cr(user_id)
+        await _send_cr_question(context.bot, user_id, inviter, cr_data)
+        return
+
+    # ── Tolak invite ──────────────────────────────────────────────
+    if data == "cr_decline":
+        inviter = context.application.bot_data.get(f"cr_invite_{user_id}")
+        context.application.bot_data.pop(f"cr_invite_{user_id}", None)
+        await query.answer("Oke, gak jadi.")
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        if inviter:
+            await context.bot.send_message(chat_id=inviter, text="😔 <i>Partner belum siap buat Confession Roulette. Coba lagi nanti!</i>", parse_mode="HTML")
+        return
+
+    # ── Skip pertanyaan ───────────────────────────────────────────
+    if data.startswith("cr_skip_"):
+        cr_data = db_get_cr(user_id)
+        if not cr_data:
+            await query.answer("Sesi udah selesai.")
+            return
+        try:
+            round_num = int(data.split("cr_skip_")[1])
+        except (IndexError, ValueError):
+            return
+        if cr_data["round"] != round_num:
+            await query.answer("Ronde udah berlalu.")
+            return
+
+        await query.answer("Di-skip!")
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+
+        partner_id  = cr_data["partner_id"]
+        level       = cr_data["level"]
+        session_key = f"cr_used_{min(user_id, partner_id)}_{max(user_id, partner_id)}"
+        used        = context.application.bot_data.get(session_key, [])
+        q_idx, _    = _get_cr_question(level, used)
+        used.append(q_idx)
+        context.application.bot_data[session_key] = used
+        db_cr_next_round(user_id, partner_id, q_idx)
+
+        await context.bot.send_message(
+            chat_id=partner_id,
+            text="⏭ <i>Partner skip pertanyaan ini. Lanjut ke berikutnya!</i>",
+            parse_mode="HTML"
+        )
+
+        cr_data = db_get_cr(user_id)
+        round_num = cr_data["round"]
+
+        # Cek apakah saatnya tawarin naik level
+        if round_num > CR_LEVEL_ROUNDS_BEFORE_UPGRADE and level < 5:
+            hint = _cr_level_up_hint(level)
+            await context.bot.send_message(chat_id=user_id, text=hint, parse_mode="HTML", reply_markup=btn_cr_level_up())
+            await context.bot.send_message(chat_id=partner_id, text=hint, parse_mode="HTML", reply_markup=btn_cr_level_up())
+        else:
+            await _send_cr_question(context.bot, user_id, partner_id, cr_data)
+        return
+
+    # ── Lanjut pertanyaan berikutnya ──────────────────────────────
+    if data.startswith("cr_next_"):
+        cr_data = db_get_cr(user_id)
+        if not cr_data:
+            await query.answer("Sesi udah selesai.")
+            return
+        try:
+            round_num = int(data.split("cr_next_")[1])
+        except (IndexError, ValueError):
+            return
+
+        await query.answer("Siap!")
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+
+        partner_id  = cr_data["partner_id"]
+        level       = cr_data["level"]
+        session_key = f"cr_used_{min(user_id, partner_id)}_{max(user_id, partner_id)}"
+
+        context.application.bot_data[f"cr_next_ready_{user_id}"] = True
+        if context.application.bot_data.get(f"cr_next_ready_{partner_id}"):
+            context.application.bot_data.pop(f"cr_next_ready_{user_id}", None)
+            context.application.bot_data.pop(f"cr_next_ready_{partner_id}", None)
+
+            used     = context.application.bot_data.get(session_key, [])
+            q_idx, _ = _get_cr_question(level, used)
+            used.append(q_idx)
+            context.application.bot_data[session_key] = used
+            db_cr_next_round(user_id, partner_id, q_idx)
+
+            cr_data   = db_get_cr(user_id)
+            round_num = cr_data["round"]
+
+            if round_num > CR_LEVEL_ROUNDS_BEFORE_UPGRADE and level < 5:
+                hint = _cr_level_up_hint(level)
+                await context.bot.send_message(chat_id=user_id, text=hint, parse_mode="HTML", reply_markup=btn_cr_level_up())
+                await context.bot.send_message(chat_id=partner_id, text=hint, parse_mode="HTML", reply_markup=btn_cr_level_up())
+            else:
+                await _send_cr_question(context.bot, user_id, partner_id, cr_data)
+        else:
+            await context.bot.send_message(chat_id=partner_id, text="✅ <i>Partner udah siap pertanyaan berikutnya!</i>", parse_mode="HTML")
+        return
+
+    # ── Request naik level ────────────────────────────────────────
+    if data == "cr_levelup_request":
+        cr_data = db_get_cr(user_id)
+        if not cr_data:
+            return
+        await query.answer("Request terkirim!")
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        db_cr_set_level_up_request(user_id)
+        level   = cr_data["level"]
+        next_lv = CR_QUESTIONS.get(level + 1)
+        if next_lv:
+            await context.bot.send_message(
+                chat_id=cr_data["partner_id"],
+                text=(
+                    f"🆙 <b>Partner mau naik ke level {level + 1} — {next_lv['emoji']} {next_lv['name']}!</b>\n\n"
+                    f"<i>Pertanyaan bakal makin dalam. Lo siap?</i>"
+                ),
+                parse_mode="HTML",
+                reply_markup=btn_cr_level_up_confirm()
+            )
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="⏳ <i>Nunggu partner setuju dulu...</i>",
+                parse_mode="HTML"
+            )
+        return
+
+    # ── Lanjut level ini (skip naik level) ───────────────────────
+    if data == "cr_levelup_skip":
+        cr_data = db_get_cr(user_id)
+        if not cr_data:
+            return
+        await query.answer("Oke, lanjut dulu!")
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await _send_cr_question(context.bot, user_id, cr_data["partner_id"], cr_data)
+        return
+
+    # ── Partner setuju naik level ─────────────────────────────────
+    if data == "cr_levelup_accept":
+        cr_data = db_get_cr(user_id)
+        if not cr_data:
+            return
+        partner_id = cr_data["partner_id"]
+        await query.answer("Let's go! 🆙")
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+
+        db_cr_upgrade_level(user_id, partner_id)
+        cr_data  = db_get_cr(user_id)
+        level    = cr_data["level"]
+        lname    = CR_QUESTIONS[level]["name"]
+        lemoji   = CR_QUESTIONS[level]["emoji"]
+
+        session_key = f"cr_used_{min(user_id, partner_id)}_{max(user_id, partner_id)}"
+        context.application.bot_data.pop(session_key, None)
+        q_idx, _ = _get_cr_question(level, [])
+        context.application.bot_data[session_key] = [q_idx]
+        db_cr_set_question_idx(user_id, partner_id, q_idx)
+
+        msg = (
+            f"🆙 <b>Naik level!</b>\n\n"
+            f"Sekarang kalian di level {level} — {lemoji} <b>{lname}</b>.\n"
+            f"<i>Makin dalam, makin seru. Jaga vibes-nya ya 🙏</i>"
+        )
+        await context.bot.send_message(chat_id=user_id, text=msg, parse_mode="HTML")
+        await context.bot.send_message(chat_id=partner_id, text=msg, parse_mode="HTML")
+        await _send_cr_question(context.bot, user_id, partner_id, cr_data)
+        return
+
+    # ── Partner nolak naik level ──────────────────────────────────
+    if data == "cr_levelup_reject":
+        cr_data = db_get_cr(user_id)
+        if not cr_data:
+            return
+        await query.answer("Oke, santuy!")
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await context.bot.send_message(
+            chat_id=cr_data["partner_id"],
+            text="😅 <i>Partner belum siap naik level. Gapapa, lanjut dulu di sini!</i>",
+            parse_mode="HTML"
+        )
+        await _send_cr_question(context.bot, user_id, cr_data["partner_id"], cr_data)
+        return
+
+    # ── Selesai / akhiri game ─────────────────────────────────────
+    if data == "cr_end":
+        cr_data = db_get_cr(user_id)
+        if cr_data:
+            db_delete_cr(user_id, cr_data["partner_id"])
+            session_key = f"cr_used_{min(user_id, cr_data['partner_id'])}_{max(user_id, cr_data['partner_id'])}"
+            context.application.bot_data.pop(session_key, None)
+            context.application.bot_data.pop(f"cr_next_ready_{cr_data['partner_id']}", None)
+            try:
+                await context.bot.send_message(
+                    chat_id=cr_data["partner_id"],
+                    text="🛑 <i>Partner mengakhiri Confession Roulette.</i>",
+                    parse_mode="HTML"
+                )
+            except TelegramError:
+                pass
+        context.application.bot_data.pop(f"cr_next_ready_{user_id}", None)
+        await query.answer("Selesai!")
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        return
+
+    # ── Main lagi ─────────────────────────────────────────────────
+    if data == "cr_replay":
+        partner = db_get_partner(user_id)
+        if not partner:
+            await query.answer("Kamu udah ga punya partner.")
+            return
+        await query.answer("Siap!")
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        context.application.bot_data[f"cr_replay_ready_{user_id}"] = True
+        if context.application.bot_data.get(f"cr_replay_ready_{partner}"):
+            context.application.bot_data.pop(f"cr_replay_ready_{user_id}", None)
+            context.application.bot_data.pop(f"cr_replay_ready_{partner}", None)
+            session_key = f"cr_used_{min(user_id, partner)}_{max(user_id, partner)}"
+            context.application.bot_data.pop(session_key, None)
+            q_idx, _ = _get_cr_question(1, [])
+            context.application.bot_data[session_key] = [q_idx]
+            db_create_cr(user_id, partner, 1, q_idx)
+            cr_data = db_get_cr(user_id)
+            await _send_cr_question(context.bot, user_id, partner, cr_data)
+        else:
+            await context.bot.send_message(
+                chat_id=partner,
+                text="🔄 <i>Partner mau main Confession Roulette lagi! Mau juga?</i>",
+                parse_mode="HTML",
+                reply_markup=btn_cr_replay()
+            )
+        return
+
+
+def _cr_level_up_hint(current_level: int) -> str:
+    """Teks saran naik level yang natural."""
+    level_data = CR_QUESTIONS.get(current_level + 1, {})
+    next_name  = level_data.get("name", "")
+    next_emoji = level_data.get("emoji", "")
+    hints = [
+        f"✨ <i>Kayaknya kalian udah mulai nyambung nih. Mau naik ke level {current_level + 1} — {next_emoji} {next_name}? Pertanyaannya bakal lebih personal dikit.</i>",
+        f"👀 <i>Udah {CR_LEVEL_ROUNDS_BEFORE_UPGRADE}+ ronde, vibes-nya udah enak. Siap ke {next_emoji} {next_name}?</i>",
+        f"🚀 <i>Kalian udah cukup warm up nih. Mau coba pertanyaan yang lebih dalam? Level {current_level + 1} — {next_emoji} {next_name} nunggu.</i>",
+    ]
+    return random.choice(hints)
+
+
 async def _send_report_with_evidence(user_id: int, context, update=None):
     pending = context.user_data.get("pending_report")
     if not pending:
@@ -2212,12 +2893,8 @@ async def done_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def notify_online(app):
-    try:
-        chatting = execute_turso("SELECT DISTINCT user_id FROM active_chats")
-    except Exception as e:
-        logger.error("notify_online: gagal ambil active_chats dari Turso: %s", e)
-        chatting = []
-
+    # Notif yang lagi chat
+    chatting = execute_turso("SELECT DISTINCT user_id FROM active_chats")
     for (user_id,) in chatting:
         try:
             await app.bot.send_message(
@@ -2228,14 +2905,9 @@ async def notify_online(app):
         except Exception:
             pass
 
-    try:
-        waiting = execute_turso("SELECT user_id FROM waiting_users")
-    except Exception as e:
-        logger.error("notify_online: gagal ambil waiting_users dari Turso: %s", e)
-        waiting = []
-
-    # Notif dulu, baru hapus — supaya kalau ada error di tengah loop,
-    # waiting list tidak terlanjur terhapus sebelum semua user dinotif.
+    # Notif yang lagi waiting, lalu bersihkan waiting list
+    waiting = execute_turso("SELECT user_id FROM waiting_users")
+    execute_turso("DELETE FROM waiting_users")
     for (user_id,) in waiting:
         try:
             await app.bot.send_message(
@@ -2245,12 +2917,6 @@ async def notify_online(app):
             )
         except Exception:
             pass
-
-    if waiting:
-        try:
-            execute_turso("DELETE FROM waiting_users")
-        except Exception as e:
-            logger.error("notify_online: gagal DELETE waiting_users: %s", e)
 
     logger.info("Notif startup: %d chatting, %d waiting dibersihkan.", len(chatting), len(waiting))
 
@@ -2276,7 +2942,7 @@ def main():
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(~filters.COMMAND, message))
 
-    # app.post_init = notify_online
+    app.post_init = notify_online
 
     logger.info("Bot started.")
     app.run_polling()
