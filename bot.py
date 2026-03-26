@@ -502,9 +502,13 @@ def execute_turso(sql: str, params: list = None) -> list:
         data=data,
         headers={"Authorization": f"Bearer {TURSO_TOKEN}", "Content-Type": "application/json"}
     )
-    with urllib.request.urlopen(req) as res:
-        result = _json.loads(res.read())["results"][0]["response"]["result"]
-    return [[col.get("value") for col in row] for row in result["rows"]]
+    try:
+        with urllib.request.urlopen(req, timeout=10) as res:
+            result = _json.loads(res.read())["results"][0]["response"]["result"]
+        return [[col.get("value") for col in row] for row in result["rows"]]
+    except Exception as e:
+        logger.error("execute_turso error [%s]: %s", sql[:60], e)
+        raise
 
 def init_db():
     for sql in [
@@ -989,6 +993,9 @@ async def _do_find(user_id: int, context, gender_pref: str | None = None):
         )
         # Schedule fallback ke random setelah 2 menit
         if gender_pref and gender_pref != "random":
+            # Batalkan job lama kalau ada, supaya tidak duplikat
+            for job in context.application.job_queue.get_jobs_by_name(f"fallback_{user_id}"):
+                job.schedule_removal()
             context.application.job_queue.run_once(
                 _fallback_to_random,
                 when=120,
@@ -1026,10 +1033,27 @@ async def _do_skip(user_id: int, context):
         db_remove_chat(user_id, partner)
         clear_log(user_id)
         clear_log(partner)
+
+        # Hapus CR kalau ada
         if db_get_cr(user_id):
             db_delete_cr(user_id, partner)
-            session_key = f"cr_used_{min(user_id, partner)}_{max(user_id, partner)}"
-            context.application.bot_data.pop(session_key, None)
+            cr_key = f"cr_used_{min(user_id, partner)}_{max(user_id, partner)}"
+            context.application.bot_data.pop(cr_key, None)
+            context.application.bot_data.pop(f"cr_next_ready_{user_id}", None)
+            context.application.bot_data.pop(f"cr_next_ready_{partner}", None)
+            context.application.bot_data.pop(f"cr_replay_ready_{user_id}", None)
+            context.application.bot_data.pop(f"cr_replay_ready_{partner}", None)
+
+        # Hapus WYR kalau ada
+        if db_get_game(user_id):
+            db_delete_game(user_id, partner)
+            wyr_key = f"game_used_{min(user_id, partner)}_{max(user_id, partner)}"
+            context.application.bot_data.pop(wyr_key, None)
+            context.application.bot_data.pop(f"game_next_ready_{user_id}", None)
+            context.application.bot_data.pop(f"game_next_ready_{partner}", None)
+            context.application.bot_data.pop(f"game_replay_ready_{user_id}", None)
+            context.application.bot_data.pop(f"game_replay_ready_{partner}", None)
+
         streak = db_update_skip_streak(user_id)
         await context.bot.send_message(chat_id=user_id, text="🔎 <i>Oke, nyari yang baru...</i>", parse_mode="HTML")
         await context.bot.send_message(
@@ -1065,6 +1089,10 @@ async def _do_stop(user_id: int, context):
         db_delete_cr(user_id, partner)
         session_key = f"cr_used_{min(user_id, partner)}_{max(user_id, partner)}"
         context.application.bot_data.pop(session_key, None)
+        context.application.bot_data.pop(f"cr_next_ready_{user_id}", None)
+        context.application.bot_data.pop(f"cr_next_ready_{partner}", None)
+        context.application.bot_data.pop(f"cr_replay_ready_{user_id}", None)
+        context.application.bot_data.pop(f"cr_replay_ready_{partner}", None)
         try:
             await context.bot.send_message(chat_id=partner, text="🃏 <i>Confession Roulette selesai karena partner disconnect.</i>", parse_mode="HTML")
         except TelegramError:
@@ -1394,6 +1422,15 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.answer()
     await _remove_inline_buttons(context, query.message.chat_id, query.message.message_id)
+
+    # Game dan CR callbacks punya query.answer() sendiri di dalamnya
+    if data.startswith("game_"):
+        await _handle_game_callbacks(data, user_id, query, context)
+        return
+
+    if data.startswith("cr_"):
+        await _handle_cr_callbacks(data, user_id, query, context)
+        return
 
     if data == "notify_yes":
         db_add_notify(user_id)
@@ -1876,70 +1913,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ── Game select menu ─────────────────────────────────────────
-    if data == "game_select_wyr":
-        partner = db_get_partner(user_id)
-        if not partner:
-            await query.answer("Kamu udah ga punya partner.")
-            return
-        await query.answer()
-        try:
-            await query.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
-        await context.bot.send_message(
-            chat_id=user_id,
-            text="📨 <i>Undangan Would You Rather dikirim ke partner kamu...</i>",
-            parse_mode="HTML"
-        )
-        await context.bot.send_message(
-            chat_id=partner,
-            text="🎲 <b>Partner kamu ngajak main Would You Rather!</b>\n\nMau main bareng?",
-            parse_mode="HTML",
-            reply_markup=btn_game_invite()
-        )
-        context.application.bot_data[f"game_invite_{partner}"] = user_id
-        return
-
-    if data == "game_select_cr":
-        partner = db_get_partner(user_id)
-        if not partner:
-            await query.answer("Kamu udah ga punya partner.")
-            return
-        await query.answer()
-        try:
-            await query.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
-        await context.bot.send_message(
-            chat_id=user_id,
-            text="📨 <i>Undangan Confession Roulette dikirim ke partner kamu...</i>",
-            parse_mode="HTML"
-        )
-        await context.bot.send_message(
-            chat_id=partner,
-            text=(
-                "🃏 <b>Partner kamu ngajak main Confession Roulette!</b>\n\n"
-                "<i>Jawab pertanyaan random bareng. Mulai dari yang ringan dulu — "
-                "makin dalam kalau kalian udah nyambung.</i>\n\n"
-                "Berani ga? 👀"
-            ),
-            parse_mode="HTML",
-            reply_markup=btn_cr_invite()
-        )
-        context.application.bot_data[f"cr_invite_{partner}"] = user_id
-        return
-
-    # ── Game callbacks ────────────────────────────────────────────
-    if data.startswith("game_"):
-        await _handle_game_callbacks(data, user_id, query, context)
-        return
-
-    # ── CR callbacks ──────────────────────────────────────────────
-    if data.startswith("cr_"):
-        await _handle_cr_callbacks(data, user_id, query, context)
-        return
-
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     s = db_get_stats()
@@ -1992,7 +1965,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "4. Kalau mau ganti partner, pencet tombol ⏭ Skip\n\n"
             "<b>Setelah chat selesai:</b>\n"
             "Ada tombol 🔄 Hubungkan lagi — kalau mau balik ke partner yang sama, dua-duanya harus pencet. Berlaku 6 jam.\n\n"
-            "⚠️ Spam, konten dewasa, atau nyebarin info pribadi orang → langsung report. 3 report = auto-banned.\n\n"
+            "⚠️ Spam, konten dewasa, atau nyebarin info pribadi orang → langsung report. Laporan kamu akan ditinjau admin.\n\n"
             "———\n"
             "🐛 Ada bug atau pertanyaan?\n"
             "Join channel → @anonyneo\n"
@@ -2286,6 +2259,60 @@ async def game(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _handle_game_callbacks(data: str, user_id: int, query, context):
+
+    # ── Pilih game dari menu ───────────────────────────────────────
+    if data == "game_select_wyr":
+        partner = db_get_partner(user_id)
+        if not partner:
+            await query.answer("Kamu udah ga punya partner.")
+            return
+        await query.answer()
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="📨 <i>Undangan Would You Rather dikirim ke partner kamu...</i>",
+            parse_mode="HTML"
+        )
+        await context.bot.send_message(
+            chat_id=partner,
+            text="🎲 <b>Partner kamu ngajak main Would You Rather!</b>\n\nMau main bareng?",
+            parse_mode="HTML",
+            reply_markup=btn_game_invite()
+        )
+        context.application.bot_data[f"game_invite_{partner}"] = user_id
+        return
+
+    if data == "game_select_cr":
+        partner = db_get_partner(user_id)
+        if not partner:
+            await query.answer("Kamu udah ga punya partner.")
+            return
+        await query.answer()
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="📨 <i>Undangan Confession Roulette dikirim ke partner kamu...</i>",
+            parse_mode="HTML"
+        )
+        await context.bot.send_message(
+            chat_id=partner,
+            text=(
+                "🃏 <b>Partner kamu ngajak main Confession Roulette!</b>\n\n"
+                "<i>Jawab pertanyaan random bareng. Mulai dari yang ringan dulu — "
+                "makin dalam kalau kalian udah nyambung.</i>\n\n"
+                "Berani ga? 👀"
+            ),
+            parse_mode="HTML",
+            reply_markup=btn_cr_invite()
+        )
+        context.application.bot_data[f"cr_invite_{partner}"] = user_id
+        return
 
     # ── Terima invite ─────────────────────────────────────────────
     if data == "game_accept":
@@ -2632,6 +2659,10 @@ async def _handle_cr_callbacks(data: str, user_id: int, query, context):
         except (IndexError, ValueError):
             return
 
+        if cr_data["round"] != round_num:
+            await query.answer("Ronde udah berlalu.")
+            return
+
         await query.answer("Siap!")
         try:
             await query.edit_message_reply_markup(reply_markup=None)
@@ -2744,6 +2775,9 @@ async def _handle_cr_callbacks(data: str, user_id: int, query, context):
         context.application.bot_data[session_key] = [q_idx]
         db_cr_set_question_idx(user_id, partner_id, q_idx)
 
+        # Fetch ulang setelah question_idx diupdate supaya cr_data tidak stale
+        cr_data = db_get_cr(user_id)
+
         msg = (
             f"🆙 <b>Naik level!</b>\n\n"
             f"Sekarang kalian di level {level} — {lemoji} <b>{lname}</b>.\n"
@@ -2852,7 +2886,7 @@ def _cr_level_up_hint(current_level: int) -> str:
     return random.choice(hints)
 
 
-async def _send_report_with_evidence(user_id: int, context, update=None):
+async def _send_report_with_evidence(user_id: int, context):
     pending = context.user_data.get("pending_report")
     if not pending:
         return
@@ -2921,8 +2955,12 @@ async def done_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def notify_online(app):
-    # Notif yang lagi chat
-    chatting = execute_turso("SELECT DISTINCT user_id FROM active_chats")
+    try:
+        chatting = execute_turso("SELECT DISTINCT user_id FROM active_chats")
+    except Exception as e:
+        logger.error("notify_online: gagal ambil active_chats dari Turso: %s", e)
+        chatting = []
+
     for (user_id,) in chatting:
         try:
             await app.bot.send_message(
@@ -2933,9 +2971,14 @@ async def notify_online(app):
         except Exception:
             pass
 
-    # Notif yang lagi waiting, lalu bersihkan waiting list
-    waiting = execute_turso("SELECT user_id FROM waiting_users")
-    execute_turso("DELETE FROM waiting_users")
+    try:
+        waiting = execute_turso("SELECT user_id FROM waiting_users")
+    except Exception as e:
+        logger.error("notify_online: gagal ambil waiting_users dari Turso: %s", e)
+        waiting = []
+
+    # Notif dulu, baru hapus — supaya kalau ada error di tengah loop,
+    # waiting list tidak terlanjur terhapus sebelum semua user dinotif.
     for (user_id,) in waiting:
         try:
             await app.bot.send_message(
@@ -2945,6 +2988,12 @@ async def notify_online(app):
             )
         except Exception:
             pass
+
+    if waiting:
+        try:
+            execute_turso("DELETE FROM waiting_users")
+        except Exception as e:
+            logger.error("notify_online: gagal DELETE waiting_users: %s", e)
 
     logger.info("Notif startup: %d chatting, %d waiting dibersihkan.", len(chatting), len(waiting))
 
